@@ -108,6 +108,8 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 if(!measuring){
+                    graph.setVisibility(View.GONE);
+                    preview.setVisibility(View.VISIBLE);
                     Camera.Parameters parameters = camera.getParameters();
                     parameters.setFlashMode(Camera.Parameters.FLASH_MODE_TORCH);
                     camera.setParameters(parameters);
