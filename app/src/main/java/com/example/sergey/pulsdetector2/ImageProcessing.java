@@ -6,12 +6,12 @@ package com.example.sergey.pulsdetector2;
 
 abstract class ImageProcessing {
 
-    private static int decodeYUV420SPtoRedSum(byte[] yuv420sp, int width, int height) {
-        if (yuv420sp == null) return 0;
+    private static int[] decodeYUV420SPtoRedSum(byte[] yuv420sp, int width, int height) {
+        if (yuv420sp == null) return null;
 
         final int frameSize = width * height;
 
-        int sum = 0;
+        int[] res_sums = new int[3];
         for (int j = 0, yp = 0; j < height; j++) {
             int uvp = frameSize + (j >> 1) * width, u = 0, v = 0;
             for (int i = 0; i < width; i++, yp++) {
@@ -35,18 +35,26 @@ abstract class ImageProcessing {
 
                 int pixel = 0xff000000 | ((r << 6) & 0xff0000) | ((g >> 2) & 0xff00) | ((b >> 10) & 0xff);
                 int red = (pixel >> 16) & 0xff;
-                sum += red;
+                res_sums[0] += red;
+                int green = (pixel >> 8) & 0xff;
+                res_sums[1] += green;
+                int blue = (pixel >> 0) & 0xff;
+                res_sums[2] += blue;
             }
         }
-        return sum;
+        return res_sums;
     }
 
-    public static int decodeYUV420SPtoRedAvg(byte[] yuv420sp, int width, int height) {
-        if (yuv420sp == null) return 0;
+    public static int[] decodeYUV420SPtoRedAvg(byte[] yuv420sp, int width, int height) {
+        if (yuv420sp == null) return null;
 
         final int frameSize = width * height;
 
-        int sum = decodeYUV420SPtoRedSum(yuv420sp, width, height);
-        return (sum / frameSize);
+
+        int[] res_sums = decodeYUV420SPtoRedSum(yuv420sp, width, height);
+        for (int i = 0; i < 3; i++){
+            res_sums[i] = res_sums[i]/frameSize;
+        }
+        return res_sums;
     }
 }

@@ -2,6 +2,7 @@ package com.example.sergey.pulsdetector2;
 
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.graphics.SurfaceTexture;
 import android.hardware.Camera;
 import android.hardware.Camera.Parameters;
@@ -24,7 +25,9 @@ import com.jjoe64.graphview.series.LineGraphSeries;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -34,12 +37,14 @@ public class MainActivity extends AppCompatActivity {
     private static SurfaceView preview = null;
     private static SurfaceHolder previewHolder = null;
     private static Camera camera = null;
-    CountDownTimer timerToStart, timerToGo;
+    CountDownTimer timerToStart, timerToGo, additionalTimer;
     TextView countDownField;
     Button startButton;
-    GraphView graph;
+    GraphView graph, graphFur;
     Boolean measuring = false;
     ArrayList<Integer> redsums = new ArrayList<>();
+    FourierTransformer FFT = new FourierTransformer(256);
+    Integer timePassed = 0;
 
     private static PowerManager.WakeLock wakeLock = null;
 
@@ -61,6 +66,7 @@ public class MainActivity extends AppCompatActivity {
         countDownField = (TextView)findViewById(R.id.countDownField);
         startButton = (Button)findViewById(R.id.buttonStart);
         graph = (GraphView)findViewById(R.id.graph);
+        graphFur = (GraphView)findViewById(R.id.graphFur);
 
         timerToStart = new CountDownTimer(3000, 1000) {
             @Override
@@ -71,7 +77,7 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onFinish() {
-                countDownField.setText(getText(R.string.tillStart)+ "0");
+                countDownField.setText("Measuring");
                 camera.setPreviewCallback(previewCallback);
                 timerToGo.start();
             }
@@ -80,27 +86,35 @@ public class MainActivity extends AppCompatActivity {
         timerToGo = new CountDownTimer(10000, 1000) {
             @Override
             public void onTick(long millisUntilFinished) {
-                Integer secsToGo = Math.round(millisUntilFinished/1000);
-                countDownField.setText(getText(R.string.toGo)+ secsToGo.toString());
             }
 
             @Override
             public void onFinish() {
-                countDownField.setText("DONE");
-                Camera.Parameters parameters = camera.getParameters();
-                parameters.setFlashMode(Camera.Parameters.FLASH_MODE_OFF);
-                camera.setParameters(parameters);
-                camera.stopPreview();
-                previewHolder.getSurface().release();
-                preview.setVisibility(View.GONE);
-                DataPoint[] points = new DataPoint[redsums.size()];
-                for (int i = 0; i < redsums.size(); i++){
-                    points[i] = new DataPoint(i, redsums.get(i));
+                timePassed += 10;
+                if (redsums.size() < 300){
+                    additionalTimer.start();
                 }
-                LineGraphSeries<DataPoint> series = new LineGraphSeries<>(points);
-                graph.addSeries(series);
-                graph.setVisibility(View.VISIBLE);
-                startButton.setText(R.string.startMeasuring);
+                else {
+                    onMeasureFinish();
+                }
+            }
+        };
+
+        additionalTimer = new CountDownTimer(1000, 1000) {
+            @Override
+            public void onTick(long millisUntilFinished) {
+
+            }
+
+            @Override
+            public void onFinish() {
+                timePassed += 1;
+                if (redsums.size() < 300){
+                    additionalTimer.start();
+                }
+                else {
+                    onMeasureFinish();
+                }
             }
         };
 
@@ -109,7 +123,12 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View v) {
                 if(!measuring){
                     graph.setVisibility(View.GONE);
+                    graphFur.setVisibility(View.GONE);
                     preview.setVisibility(View.VISIBLE);
+
+                    redsums.clear();
+                    timePassed = 0;
+
                     Camera.Parameters parameters = camera.getParameters();
                     parameters.setFlashMode(Camera.Parameters.FLASH_MODE_TORCH);
                     camera.setParameters(parameters);
@@ -133,6 +152,48 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
+
+    private void onMeasureFinish(){
+        countDownField.setText("DONE");
+        Camera.Parameters parameters = camera.getParameters();
+        parameters.setFlashMode(Camera.Parameters.FLASH_MODE_OFF);
+        camera.setParameters(parameters);
+        camera.stopPreview();
+        previewHolder.getSurface().release();
+        preview.setVisibility(View.GONE);
+
+
+        while (redsums.size() > 256){ //ineffective!
+            redsums.remove(0);
+        }
+        graph.removeAllSeries();
+        LineGraphSeries<DataPoint> red_series = new LineGraphSeries<>(getDataPoints(redsums));
+        red_series.setColor(Color.RED);
+        graph.addSeries(red_series);
+        graph.setVisibility(View.VISIBLE);
+
+        double[] ys = new double[256];
+        double[] xs = new double[256];
+        for (int i = 0; i < 256; i++){
+            ys[i] = 0;
+            xs[i] = redsums.get(i);
+        }
+
+        FFT.fft(xs, ys);
+        double[] freqs = new double[128];
+        double[] amplitudes = new double[128];
+        FFT.interpretFourier(xs, ys, freqs, amplitudes, 25.6, 256);
+
+        graphFur.removeAllSeries();
+        LineGraphSeries<DataPoint> fur_series = new LineGraphSeries<>(getFreqAmplitudes(freqs, amplitudes));
+        graphFur.addSeries(fur_series);
+        graphFur.setVisibility(View.VISIBLE);
+
+
+        startButton.setText(R.string.startMeasuring);
+        measuring = !measuring;
+    }
+
     @Override
     public void onResume() {
         super.onResume();
@@ -142,9 +203,6 @@ public class MainActivity extends AppCompatActivity {
         camera = Camera.open();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public void onPause() {
         super.onPause();
@@ -196,9 +254,8 @@ public class MainActivity extends AppCompatActivity {
             int width = size.width;
             int height = size.height;
 
-            Integer imgAvg = ImageProcessing.decodeYUV420SPtoRedAvg(data.clone(), width, height);
-            redsums.add(imgAvg);
-
+            int[] imgAvgs = ImageProcessing.decodeYUV420SPtoRedAvg(data.clone(), width, height);
+            redsums.add(imgAvgs[0]);
         }
     };
 
@@ -219,5 +276,39 @@ public class MainActivity extends AppCompatActivity {
         }
 
         return result;
+    }
+
+    private ArrayList<Integer> processRedSum(ArrayList<Integer> redsums){
+        Log.e("TAG", "processing called");
+        Log.e("TAG", ""+redsums.size());
+        ArrayList<Integer> newreds = (ArrayList<Integer>)redsums.clone();
+        int i = 0;
+        while (i < newreds.size()){
+            if (newreds.get(i) < 150){
+                newreds.remove(i);
+            }
+            else {
+                i++;
+            }
+        }
+        Log.e("TAGn", ""+newreds.size());
+        return newreds;
+    }
+
+    private DataPoint[] getDataPoints(ArrayList<Integer> sums){
+        DataPoint[] points = new DataPoint[sums.size()];
+        for (int i = 0; i < sums.size(); i++){
+            points[i] = new DataPoint(i, sums.get(i));
+        }
+        return points;
+    }
+
+    private DataPoint[] getFreqAmplitudes(double[] freqs, double[] amplitudes){
+        DataPoint[] points = new DataPoint[freqs.length-85];
+        for (int i = 5; i < freqs.length-80; i++){
+            Log.e("FA", freqs[i]+" "+amplitudes[i]);
+            points[i-5] = new DataPoint(freqs[i]*60, amplitudes[i]);
+        }
+        return points;
     }
 }
