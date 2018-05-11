@@ -38,13 +38,14 @@ public class MainActivity extends AppCompatActivity {
     private static SurfaceHolder previewHolder = null;
     private static Camera camera = null;
     CountDownTimer timerToStart, timerToGo, additionalTimer;
-    TextView countDownField;
+    TextView countDownField, resultTextField;
     Button startButton;
     GraphView graph, graphFur;
     Boolean measuring = false;
     ArrayList<Integer> redsums = new ArrayList<>();
     FourierTransformer FFT = new FourierTransformer(256);
     Integer timePassed = 0;
+    Double sampleFrequency;
 
     private static PowerManager.WakeLock wakeLock = null;
 
@@ -64,6 +65,7 @@ public class MainActivity extends AppCompatActivity {
 
 
         countDownField = (TextView)findViewById(R.id.countDownField);
+        resultTextField = (TextView)findViewById(R.id.resultTextField);
         startButton = (Button)findViewById(R.id.buttonStart);
         graph = (GraphView)findViewById(R.id.graph);
         graphFur = (GraphView)findViewById(R.id.graphFur);
@@ -124,6 +126,7 @@ public class MainActivity extends AppCompatActivity {
                 if(!measuring){
                     graph.setVisibility(View.GONE);
                     graphFur.setVisibility(View.GONE);
+                    resultTextField.setVisibility(View.GONE);
                     preview.setVisibility(View.VISIBLE);
 
                     redsums.clear();
@@ -162,7 +165,7 @@ public class MainActivity extends AppCompatActivity {
         previewHolder.getSurface().release();
         preview.setVisibility(View.GONE);
 
-
+        sampleFrequency = .0 + redsums.size()/timePassed;
         while (redsums.size() > 256){ //ineffective!
             redsums.remove(0);
         }
@@ -182,10 +185,18 @@ public class MainActivity extends AppCompatActivity {
         FFT.fft(xs, ys);
         double[] freqs = new double[128];
         double[] amplitudes = new double[128];
-        FFT.interpretFourier(xs, ys, freqs, amplitudes, 25.6, 256);
+
+        FFT.interpretFourier(xs, ys, freqs, amplitudes, sampleFrequency, 256);
+
+        ArrayList<Long> BPMs = new ArrayList<>();
+        ArrayList<Double> amps = new ArrayList<>();
+        FFT.cleanResults(freqs, amplitudes, BPMs, amps);
+        long[] results = FFT.getMostProbablePuls(BPMs, amps);
+        resultTextField.setText("Most probable results: " + results[0] + " and " + results[1]);
+        resultTextField.setVisibility(View.VISIBLE);
 
         graphFur.removeAllSeries();
-        LineGraphSeries<DataPoint> fur_series = new LineGraphSeries<>(getFreqAmplitudes(freqs, amplitudes));
+        LineGraphSeries<DataPoint> fur_series = new LineGraphSeries<>(getSignalSpecterPoints(BPMs, amps));
         graphFur.addSeries(fur_series);
         graphFur.setVisibility(View.VISIBLE);
 
@@ -278,23 +289,6 @@ public class MainActivity extends AppCompatActivity {
         return result;
     }
 
-    private ArrayList<Integer> processRedSum(ArrayList<Integer> redsums){
-        Log.e("TAG", "processing called");
-        Log.e("TAG", ""+redsums.size());
-        ArrayList<Integer> newreds = (ArrayList<Integer>)redsums.clone();
-        int i = 0;
-        while (i < newreds.size()){
-            if (newreds.get(i) < 150){
-                newreds.remove(i);
-            }
-            else {
-                i++;
-            }
-        }
-        Log.e("TAGn", ""+newreds.size());
-        return newreds;
-    }
-
     private DataPoint[] getDataPoints(ArrayList<Integer> sums){
         DataPoint[] points = new DataPoint[sums.size()];
         for (int i = 0; i < sums.size(); i++){
@@ -303,11 +297,10 @@ public class MainActivity extends AppCompatActivity {
         return points;
     }
 
-    private DataPoint[] getFreqAmplitudes(double[] freqs, double[] amplitudes){
-        DataPoint[] points = new DataPoint[freqs.length-85];
-        for (int i = 5; i < freqs.length-80; i++){
-            Log.e("FA", freqs[i]+" "+amplitudes[i]);
-            points[i-5] = new DataPoint(freqs[i]*60, amplitudes[i]);
+    private DataPoint[] getSignalSpecterPoints(ArrayList<Long> bpms, ArrayList<Double> amps){
+        DataPoint[] points = new DataPoint[bpms.size()];
+        for (int i = 0; i < bpms.size(); i++){
+            points[i] = new DataPoint(bpms.get(i), amps.get(i));
         }
         return points;
     }

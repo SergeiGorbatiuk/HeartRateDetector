@@ -2,21 +2,23 @@ package com.example.sergey.pulsdetector2;
 
 import android.util.Log;
 
+import java.util.ArrayList;
+
 /**
  * Created by sergey on 07.05.18.
  */
 
 public class FourierTransformer {
 
-    int n, m;
+    private int n, m;
 
     // Lookup tables.  Only need to recompute when size of FFT changes.
-    double[] cos;
-    double[] sin;
+    private double[] cos;
+    private double[] sin;
 
-    double[] window;
+    private double[] window;
 
-    public FourierTransformer(int n) {
+    FourierTransformer(int n) {
         this.n = n;
         this.m = (int) (Math.log(n) / Math.log(2));
 
@@ -47,7 +49,7 @@ public class FourierTransformer {
         makeWindow();
     }
 
-    protected void makeWindow() {
+    private void makeWindow() {
         // Make a blackman window:
         // w(n)=0.42-0.5cos{(2*PI*n)/(N-1)}+0.08cos{(4*PI*n)/(N-1)};
         window = new double[n];
@@ -60,7 +62,7 @@ public class FourierTransformer {
         return window;
     }
 
-    public void fft(double[] x, double[] y) {
+    void fft(double[] x, double[] y) {
         int i, j, k, n1, n2, a;
         double c, s, e, t1, t2;
 
@@ -112,11 +114,42 @@ public class FourierTransformer {
         }
     }
 
-    public void interpretFourier(double xs[], double ys[], double[] freqs, double amplitudes[], double Fs, int N){
-        Log.e("CALLED", xs.length+"");
+    void interpretFourier(double xs[], double ys[], double[] freqs, double amplitudes[], double Fs, int N){
         for (int i=0; i < xs.length / 2; i++){
             freqs[i] = i*Fs/N;
             amplitudes[i] = Math.sqrt(xs[i]*xs[i] + ys[i]*ys[i]);
         }
+    }
+
+    void cleanResults(double[] freqs, double[] amplitudes, ArrayList<Long> bpm, ArrayList<Double> amps){
+        int minPuls = 40;
+        int maxPuls = 200;
+        for (int i = 0; i < freqs.length; i++){
+            if (freqs[i]*60 >= minPuls && freqs[i]*60 <= maxPuls){
+                bpm.add(Math.round(freqs[i]*60));
+                amps.add(amplitudes[i]);
+            }
+        }
+    }
+
+    long[] getMostProbablePuls(ArrayList<Long> freqs, ArrayList<Double> amplitudes){
+        Long max1 = 0L;
+        Double maxamp1 = .0;
+        Long max2 = 0L;
+        Double maxamp2 = .0;
+        for (int i = 0; i < freqs.size(); i++){
+            Double curamp = amplitudes.get(i);
+            if (curamp > maxamp1){
+                maxamp2 = maxamp1;
+                maxamp1 = curamp;
+                max2 = max1;
+                max1 = freqs.get(i);
+            }
+            else if (curamp > maxamp2){
+                maxamp2 = curamp;
+                max2 = freqs.get(i);
+            }
+        }
+        return new long[]{max1, max2};
     }
 }
