@@ -3,4 +3,9 @@
     <color name="colorPrimary">#3F51B5</color>
     <color name="colorPrimaryDark">#303F9F</color>
     <color name="colorAccent">#FF4081</color>
+    <color name="colorSplashScreen">#66ffb3</color>
+    <color name="colorMain">#ccffe6</color>
+    <color name="colorProgress">#ff7733</color>
+    <color name="colorText">#333333</color>
+    <color name="colorButton">#66b3ff</color>
 </resources>

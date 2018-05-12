@@ -1,7 +1,7 @@
 <resources>
     <string name="app_name">PulsDetector2</string>
-    <string name="startMeasuring">Start</string>
-    <string name="stopMeasuring">Stop</string>
+    <string name="startMeasuring">Start measuring</string>
+    <string name="stopMeasuring">Stop measuring</string>
     <string name="tillStart">Till start: </string>
     <string name="toGo">Remaining: </string>
 </resources>

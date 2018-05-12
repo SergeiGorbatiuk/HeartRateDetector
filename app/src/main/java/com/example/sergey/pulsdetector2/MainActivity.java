@@ -2,6 +2,7 @@ package com.example.sergey.pulsdetector2;
 
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.SurfaceTexture;
 import android.hardware.Camera;
@@ -16,6 +17,7 @@ import android.view.SurfaceView;
 import android.view.View;
 import android.widget.Button;
 import android.widget.CompoundButton;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.ToggleButton;
 
@@ -46,11 +48,13 @@ public class MainActivity extends AppCompatActivity {
     FourierTransformer FFT = new FourierTransformer(256);
     Integer timePassed = 0;
     Double sampleFrequency;
+    ProgressBar progressBar;
 
     private static PowerManager.WakeLock wakeLock = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        setTheme(R.style.AppTheme);
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
@@ -66,6 +70,9 @@ public class MainActivity extends AppCompatActivity {
 
         countDownField = (TextView)findViewById(R.id.countDownField);
         resultTextField = (TextView)findViewById(R.id.resultTextField);
+        progressBar = (ProgressBar)findViewById(R.id.progress_bar);
+        progressBar.setMax(100);
+        //progressBar.setProgressTintList(ColorStateList.valueOf(0xff7733));
         startButton = (Button)findViewById(R.id.buttonStart);
         graph = (GraphView)findViewById(R.id.graph);
         graphFur = (GraphView)findViewById(R.id.graphFur);
@@ -80,6 +87,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onFinish() {
                 countDownField.setText("Measuring");
+                progressBar.setVisibility(View.VISIBLE);
                 camera.setPreviewCallback(previewCallback);
                 timerToGo.start();
             }
@@ -115,6 +123,7 @@ public class MainActivity extends AppCompatActivity {
                     additionalTimer.start();
                 }
                 else {
+                    camera.setPreviewCallback(null);
                     onMeasureFinish();
                 }
             }
@@ -129,6 +138,7 @@ public class MainActivity extends AppCompatActivity {
                     resultTextField.setVisibility(View.GONE);
                     preview.setVisibility(View.VISIBLE);
 
+                    progressBar.setProgress(0);
                     redsums.clear();
                     timePassed = 0;
 
@@ -141,6 +151,7 @@ public class MainActivity extends AppCompatActivity {
                     measuring = !measuring;
                 }
                 else{
+                    progressBar.setVisibility(View.INVISIBLE);
                     timerToStart.cancel();
                     timerToGo.cancel();
                     Camera.Parameters parameters = camera.getParameters();
@@ -164,6 +175,7 @@ public class MainActivity extends AppCompatActivity {
         camera.stopPreview();
         previewHolder.getSurface().release();
         preview.setVisibility(View.GONE);
+        progressBar.setVisibility(View.INVISIBLE);
 
         sampleFrequency = .0 + redsums.size()/timePassed;
         while (redsums.size() > 256){ //ineffective!
@@ -258,6 +270,7 @@ public class MainActivity extends AppCompatActivity {
     private Camera.PreviewCallback previewCallback = new Camera.PreviewCallback() {
         @Override
         public void onPreviewFrame(byte[] data, Camera cam) {
+
             if (data == null) throw new NullPointerException();
             Camera.Size size = cam.getParameters().getPreviewSize();
             if (size == null) throw new NullPointerException();
@@ -267,6 +280,8 @@ public class MainActivity extends AppCompatActivity {
 
             int[] imgAvgs = ImageProcessing.decodeYUV420SPtoRedAvg(data.clone(), width, height);
             redsums.add(imgAvgs[0]);
+            Double progress = (double)redsums.size()/300*100;
+            progressBar.setProgress(progress.intValue());
         }
     };
 
