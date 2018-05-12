@@ -86,7 +86,7 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onFinish() {
-                countDownField.setText("Measuring");
+                countDownField.setText("Measuring. Hold still!");
                 progressBar.setVisibility(View.VISIBLE);
                 camera.setPreviewCallback(previewCallback);
                 timerToGo.start();
