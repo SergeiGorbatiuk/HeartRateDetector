@@ -154,6 +154,7 @@ public class MainActivity extends AppCompatActivity {
                     progressBar.setVisibility(View.INVISIBLE);
                     timerToStart.cancel();
                     timerToGo.cancel();
+                    camera.setPreviewCallback(null);
                     Camera.Parameters parameters = camera.getParameters();
                     parameters.setFlashMode(Parameters.FLASH_MODE_OFF);
                     countDownField.setText("");
