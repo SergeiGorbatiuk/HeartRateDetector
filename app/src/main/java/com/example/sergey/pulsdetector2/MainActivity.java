@@ -188,6 +188,7 @@ public class MainActivity extends AppCompatActivity {
         graph.addSeries(red_series);
         graph.setVisibility(View.VISIBLE);
 
+
         double[] ys = new double[256];
         double[] xs = new double[256];
         for (int i = 0; i < 256; i++){
@@ -201,17 +202,20 @@ public class MainActivity extends AppCompatActivity {
 
         FFT.interpretFourier(xs, ys, freqs, amplitudes, sampleFrequency, 256);
 
-        ArrayList<Long> BPMs = new ArrayList<>();
+        ArrayList<Integer> BPMs = new ArrayList<>();
         ArrayList<Double> amps = new ArrayList<>();
         FFT.cleanResults(freqs, amplitudes, BPMs, amps);
-        long[] results = FFT.getMostProbablePuls(BPMs, amps);
-        resultTextField.setText("Most probable results: " + results[0] + " and " + results[1]);
+        Integer result = FFT.getMostProbablePuls(BPMs, amps);
+        resultTextField.setText("Most probable result: " + result);
         resultTextField.setVisibility(View.VISIBLE);
 
         graphFur.removeAllSeries();
         LineGraphSeries<DataPoint> fur_series = new LineGraphSeries<>(getSignalSpecterPoints(BPMs, amps));
         graphFur.addSeries(fur_series);
         graphFur.setVisibility(View.VISIBLE);
+
+        PulsCalculator pulsCalculator = new PulsCalculator(7, sampleFrequency);
+        pulsCalculator.CalculatePuls(redsums);
 
 
         startButton.setText(R.string.startMeasuring);
@@ -222,7 +226,7 @@ public class MainActivity extends AppCompatActivity {
     public void onResume() {
         super.onResume();
 
-        wakeLock.acquire();
+        wakeLock.acquire(10*60*1000L /*10 minutes*/);
 
         camera = Camera.open();
     }
@@ -313,7 +317,7 @@ public class MainActivity extends AppCompatActivity {
         return points;
     }
 
-    private DataPoint[] getSignalSpecterPoints(ArrayList<Long> bpms, ArrayList<Double> amps){
+    private DataPoint[] getSignalSpecterPoints(ArrayList<Integer> bpms, ArrayList<Double> amps){
         DataPoint[] points = new DataPoint[bpms.size()];
         for (int i = 0; i < bpms.size(); i++){
             points[i] = new DataPoint(bpms.get(i), amps.get(i));

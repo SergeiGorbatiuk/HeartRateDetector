@@ -66,7 +66,6 @@ public class FourierTransformer {
         int i, j, k, n1, n2, a;
         double c, s, e, t1, t2;
 
-
         // Bit-reverse
         j = 0;
         n2 = n / 2;
@@ -121,35 +120,45 @@ public class FourierTransformer {
         }
     }
 
-    void cleanResults(double[] freqs, double[] amplitudes, ArrayList<Long> bpm, ArrayList<Double> amps){
+    void cleanResults(double[] freqs, double[] amplitudes, ArrayList<Integer> bpm, ArrayList<Double> amps){
         int minPuls = 40;
         int maxPuls = 200;
         for (int i = 0; i < freqs.length; i++){
             if (freqs[i]*60 >= minPuls && freqs[i]*60 <= maxPuls){
-                bpm.add(Math.round(freqs[i]*60));
+                bpm.add((int)Math.round(freqs[i]*60));
                 amps.add(amplitudes[i]);
             }
         }
     }
 
-    long[] getMostProbablePuls(ArrayList<Long> freqs, ArrayList<Double> amplitudes){
-        Long max1 = 0L;
-        Double maxamp1 = .0;
-        Long max2 = 0L;
-        Double maxamp2 = .0;
+    Integer getMostProbablePuls(ArrayList<Integer> freqs, ArrayList<Double> amplitudes){
+//        Long max1 = 0L;
+//        Double maxamp1 = .0;
+//        Long max2 = 0L;
+//        Double maxamp2 = .0;
+//        for (int i = 0; i < freqs.size(); i++){
+//            Double curamp = amplitudes.get(i);
+//            if (curamp > maxamp1){
+//                maxamp2 = maxamp1;
+//                maxamp1 = curamp;
+//                max2 = max1;
+//                max1 = freqs.get(i);
+//            }
+//            else if (curamp > maxamp2){
+//                maxamp2 = curamp;
+//                max2 = freqs.get(i);
+//            }
+//        }
+//        return new long[]{max1, max2};
+        Integer max = 0;
+        Double amp = .0;
         for (int i = 0; i < freqs.size(); i++){
             Double curamp = amplitudes.get(i);
-            if (curamp > maxamp1){
-                maxamp2 = maxamp1;
-                maxamp1 = curamp;
-                max2 = max1;
-                max1 = freqs.get(i);
-            }
-            else if (curamp > maxamp2){
-                maxamp2 = curamp;
-                max2 = freqs.get(i);
+            if (curamp > amp){
+                max = freqs.get(i);
+                amp = curamp;
             }
         }
-        return new long[]{max1, max2};
+        return max;
     }
 }
