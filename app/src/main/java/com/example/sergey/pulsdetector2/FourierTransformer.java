@@ -121,11 +121,12 @@ public class FourierTransformer {
     }
 
     void cleanResults(double[] freqs, double[] amplitudes, ArrayList<Integer> bpm, ArrayList<Double> amps){
-        int minPuls = 40;
+        int minPuls = 35;
         int maxPuls = 200;
         for (int i = 0; i < freqs.length; i++){
             if (freqs[i]*60 >= minPuls && freqs[i]*60 <= maxPuls){
                 bpm.add((int)Math.round(freqs[i]*60));
+//                Log.e("TAG", (int)Math.round(freqs[i]*60) +"");
                 amps.add(amplitudes[i]);
             }
         }

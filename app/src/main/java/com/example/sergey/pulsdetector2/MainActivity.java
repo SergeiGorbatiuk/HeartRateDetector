@@ -45,10 +45,12 @@ public class MainActivity extends AppCompatActivity {
     GraphView graph, graphFur;
     Boolean measuring = false;
     ArrayList<Integer> redsums = new ArrayList<>();
-    FourierTransformer FFT = new FourierTransformer(256);
+    FourierTransformer FFT = new FourierTransformer(512);
+    Integer intervals_count = 3;
     Integer timePassed = 0;
     Double sampleFrequency;
     ProgressBar progressBar;
+
 
     private static PowerManager.WakeLock wakeLock = null;
 
@@ -93,15 +95,15 @@ public class MainActivity extends AppCompatActivity {
             }
         };
 
-        timerToGo = new CountDownTimer(10000, 1000) {
+        timerToGo = new CountDownTimer(18000, 18000) {
             @Override
             public void onTick(long millisUntilFinished) {
             }
 
             @Override
             public void onFinish() {
-                timePassed += 10;
-                if (redsums.size() < 300){
+                timePassed += 18;
+                if (redsums.size() < 530){
                     additionalTimer.start();
                 }
                 else {
@@ -119,7 +121,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onFinish() {
                 timePassed += 1;
-                if (redsums.size() < 300){
+                if (redsums.size() < 530){
                     additionalTimer.start();
                 }
                 else {
@@ -179,7 +181,12 @@ public class MainActivity extends AppCompatActivity {
         progressBar.setVisibility(View.INVISIBLE);
 
         sampleFrequency = .0 + redsums.size()/timePassed;
-        while (redsums.size() > 256){ //ineffective!
+        Log.e("FPS", sampleFrequency.toString());
+
+        PulsCalculator pulsCalculator = new PulsCalculator(intervals_count, sampleFrequency);
+        ArrayList<Integer> intervalResults = pulsCalculator.CalculatePuls(redsums);
+
+        while (redsums.size() > 512){ //ineffective!
             redsums.remove(0);
         }
         graph.removeAllSeries();
@@ -189,33 +196,43 @@ public class MainActivity extends AppCompatActivity {
         graph.setVisibility(View.VISIBLE);
 
 
-        double[] ys = new double[256];
-        double[] xs = new double[256];
-        for (int i = 0; i < 256; i++){
+        double[] ys = new double[512];
+        double[] xs = new double[512];
+        for (int i = 0; i < 512; i++){
             ys[i] = 0;
             xs[i] = redsums.get(i);
         }
 
         FFT.fft(xs, ys);
-        double[] freqs = new double[128];
-        double[] amplitudes = new double[128];
+        double[] freqs = new double[256];
+        double[] amplitudes = new double[256];
 
-        FFT.interpretFourier(xs, ys, freqs, amplitudes, sampleFrequency, 256);
+        FFT.interpretFourier(xs, ys, freqs, amplitudes, sampleFrequency, 512);
 
         ArrayList<Integer> BPMs = new ArrayList<>();
         ArrayList<Double> amps = new ArrayList<>();
         FFT.cleanResults(freqs, amplitudes, BPMs, amps);
-        Integer result = FFT.getMostProbablePuls(BPMs, amps);
-        resultTextField.setText("Most probable result: " + result);
-        resultTextField.setVisibility(View.VISIBLE);
-
         graphFur.removeAllSeries();
         LineGraphSeries<DataPoint> fur_series = new LineGraphSeries<>(getSignalSpecterPoints(BPMs, amps));
         graphFur.addSeries(fur_series);
         graphFur.setVisibility(View.VISIBLE);
 
-        PulsCalculator pulsCalculator = new PulsCalculator(7, sampleFrequency);
-        pulsCalculator.CalculatePuls(redsums);
+
+
+        Integer result = FFT.getMostProbablePuls(BPMs, amps);
+        Log.e("MAIN_INTVAL", result.toString());
+
+        result = GetPulsIfPossible(result, intervalResults);
+        if (result == null){
+            resultTextField.setText("Bad measurement");
+        }
+        else{
+            resultTextField.setText("Most probable result: " + result);
+        }
+
+        resultTextField.setVisibility(View.VISIBLE);
+
+
 
 
         startButton.setText(R.string.startMeasuring);
@@ -285,7 +302,7 @@ public class MainActivity extends AppCompatActivity {
 
             int[] imgAvgs = ImageProcessing.decodeYUV420SPtoRedAvg(data.clone(), width, height);
             redsums.add(imgAvgs[0]);
-            Double progress = (double)redsums.size()/300*100;
+            Double progress = (double)redsums.size()/530*100;
             progressBar.setProgress(progress.intValue());
         }
     };
@@ -323,5 +340,32 @@ public class MainActivity extends AppCompatActivity {
             points[i] = new DataPoint(bpms.get(i), amps.get(i));
         }
         return points;
+    }
+
+    private Integer GetPulsIfPossible(Integer wholeInterval, ArrayList<Integer> intervals){
+        // hardcoded for 3 intervals for now
+        Integer m1 = intervals.get(0);
+        Integer m2 = intervals.get(1);
+        Integer m3 = intervals.get(2);
+        Integer common = -1;
+        if (m1.equals(m2) && m2.equals(m3)) {
+            return m1;
+        }
+
+        if (m1.equals(m2)){
+            common = m1;
+        }
+        else if (m1.equals(m3)){
+            common = m1;
+        }
+        else if (m2.equals(m3)){
+            common = m2;
+        }
+        else return null;
+
+        if (common >= wholeInterval - 7 || common <= wholeInterval + 7){
+            return (common + wholeInterval)/2;
+        }
+        else return null;
     }
 }

@@ -16,9 +16,9 @@ import java.util.concurrent.Future;
 
 public class PulsCalculator {
 
-    private int intervals_count = 7;
-    private int measure_length = 256;
-    private int interval_length = 64;
+    private int intervals_count = 3;
+    private int measure_length = 512;
+    private int interval_length = 256;
     private Double sampleFrequency;
 
     public PulsCalculator(int intervals, Double sampleFrequency){
@@ -27,7 +27,6 @@ public class PulsCalculator {
     }
 
     private int ProcessInterval(int[] interval){
-        Log.e("THREAD", "started");
         FourierTransformer FFT = new FourierTransformer(interval_length);
         double[] xs = new double[interval_length];
         double[] ys = new double[interval_length];
@@ -45,13 +44,13 @@ public class PulsCalculator {
         return FFT.getMostProbablePuls(BPMs, amps);
     }
 
-    public Integer CalculatePuls(ArrayList<Integer> redsums){
+    public ArrayList<Integer> CalculatePuls(ArrayList<Integer> redsums){
         if (measure_length != interval_length + interval_length/2*(intervals_count - 1)){
             throw new RuntimeException("Cannot split measure of length " + measure_length
                     + " into " + intervals_count + " intervals of length " + interval_length);
         }
         //cropping the array
-        Integer[] relevant = redsums.subList(redsums.size() - 256, redsums.size()).toArray(new Integer[256]);
+        Integer[] relevant = redsums.subList(redsums.size() - measure_length, redsums.size()).toArray(new Integer[measure_length]);
         final int[][] intervals = SplitInterval(relevant);
 
         ExecutorService pool = Executors.newFixedThreadPool(intervals_count);
@@ -68,20 +67,21 @@ public class PulsCalculator {
                 });
             }
             List<Future<Object>> invokeAll = pool.invokeAll(tasks);
-
+            ArrayList<Integer> results = new ArrayList<>();
             for (Future<Object> future:
                  invokeAll) {
                 Integer pulsval = (Integer)future.get();
-                Log.e("INTVAL", pulsval.toString());
+                Log.e("INTNAL", pulsval.toString());
+                results.add(pulsval);
             }
+            return results;
         }
         catch (InterruptedException | ExecutionException e){
             e.printStackTrace();
         } finally {
             pool.shutdown();
         }
-        //TODO
-        return 0;//rework
+        return null;//rework
     }
 
     private int[][] SplitInterval(Integer[] relevant){
