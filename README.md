@@ -1,4 +1,4 @@
-# PulseDetector
+# Heart Rate Detector
 ### An android app for heart rate measurment using camera with flashlight
 ___
 This application uses camera with flashlight to capture the image of a finger that is being held close to it, and then
