@@ -1,5 +1,6 @@
 package com.example.sergey.pulsdetector2;
 
+import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
@@ -10,6 +11,9 @@ import android.hardware.Camera.Parameters;
 import android.os.Bundle;
 import android.os.CountDownTimer;
 import android.os.PowerManager;
+import android.support.annotation.NonNull;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.PermissionChecker;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.SurfaceHolder;
@@ -19,6 +23,7 @@ import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.ProgressBar;
 import android.widget.TextView;
+import android.widget.Toast;
 import android.widget.ToggleButton;
 
 import com.jjoe64.graphview.GraphView;
@@ -54,20 +59,41 @@ public class MainActivity extends AppCompatActivity {
 
     private static PowerManager.WakeLock wakeLock = null;
 
+
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        setTheme(R.style.AppTheme);
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        switch (requestCode) {
+            case 1: {
+                if (grantResults.length > 0
+                        && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    Log.e("Permission", "just been granted");
+//                    if (camera == null){
+//                        camera = Camera.open();
+//                    }
+                    initialize();
+                }
+                else {
 
+                    Toast.makeText(MainActivity.this, "Camera permission denied, closing app", Toast.LENGTH_SHORT).show();
+                    this.finishAffinity();
+                }
+            }
+        }
+    }
 
-        preview = (SurfaceView) findViewById(R.id.preview);
+    private void initialize(){
+
+        Log.e("initialize", "start");
+
+        preview = (SurfaceView)findViewById(R.id.preview);
         previewHolder = preview.getHolder();
         previewHolder.addCallback(surfaceCallback);
         //previewHolder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
 
         PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
         wakeLock = pm.newWakeLock(PowerManager.FULL_WAKE_LOCK, "DoNotDimScreen");
+
 
 
         countDownField = (TextView)findViewById(R.id.countDownField);
@@ -166,9 +192,129 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
+//        if (camera == null){
+//            camera = Camera.open();
+//        }
+    }
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        setTheme(R.style.AppTheme);
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+        int permission = PermissionChecker.checkSelfPermission(this, Manifest.permission.CAMERA);
+
+        if (permission == PermissionChecker.PERMISSION_GRANTED) {
+            Log.e("PERMISSION", "granted");
+            initialize();
+        } else {
+            Log.e("PERMISSION", "not granted");
+            ActivityCompat.requestPermissions(MainActivity.this,
+                    new String[]{Manifest.permission.CAMERA},
+                    1);
+        }
+
 
     }
 
+
+
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        Log.e("onResume", "here");
+        int permission = PermissionChecker.checkSelfPermission(this, Manifest.permission.CAMERA);
+        if (permission == PermissionChecker.PERMISSION_GRANTED){
+            Log.e("onResume", "permission granted");
+            wakeLock.acquire(10*60*1000L /*10 minutes*/);
+            if (camera == null){
+                camera = Camera.open();
+            }
+        }
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        Log.e("onPause", "here");
+        int permission = PermissionChecker.checkSelfPermission(this, Manifest.permission.CAMERA);
+        if (permission == PermissionChecker.PERMISSION_GRANTED){
+            if (camera != null){
+                wakeLock.release();
+                camera.setPreviewCallback(null);
+                camera.stopPreview();
+                camera.release();
+                camera = null;
+            }
+        }
+    }
+
+    private SurfaceHolder.Callback surfaceCallback = new SurfaceHolder.Callback() {
+        @Override
+        public void surfaceCreated(SurfaceHolder holder) {
+            try {
+                camera.setPreviewDisplay(previewHolder);
+            } catch (Throwable t) {
+                Log.e("surfaceCallback", "Exception in setPreviewDisplay()", t);
+            }
+        }
+
+        @Override
+        public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+            Camera.Parameters parameters = camera.getParameters();
+            Camera.Size size = getSmallestPreviewSize(width, height, parameters);
+            if (size != null) {
+                parameters.setPreviewSize(size.width, size.height);
+                Log.d(TAG, "Using width=" + size.width + " height=" + size.height);
+            }
+            camera.setParameters(parameters);
+            camera.setDisplayOrientation(90);
+            camera.startPreview();
+        }
+
+        @Override
+        public void surfaceDestroyed(SurfaceHolder holder) {
+            //Doing nothing
+        }
+    };
+
+    private Camera.PreviewCallback previewCallback = new Camera.PreviewCallback() {
+        @Override
+        public void onPreviewFrame(byte[] data, Camera cam) {
+
+            if (data == null) throw new NullPointerException();
+            Camera.Size size = cam.getParameters().getPreviewSize();
+            if (size == null) throw new NullPointerException();
+
+            int width = size.width;
+            int height = size.height;
+
+            int[] imgAvgs = ImageProcessing.decodeYUV420SPtoRedAvg(data.clone(), width, height);
+            redsums.add(imgAvgs[0]);
+            Double progress = (double)redsums.size()/530*100;
+            progressBar.setProgress(progress.intValue());
+        }
+    };
+
+    private Camera.Size getSmallestPreviewSize(int width, int height, Camera.Parameters parameters) {
+        Camera.Size result = null;
+
+        for (Camera.Size size : parameters.getSupportedPreviewSizes()) {
+            if (size.width <= width && size.height <= height) {
+                if (result == null) {
+                    result = size;
+                } else {
+                    int resultArea = result.width * result.height;
+                    int newArea = size.width * size.height;
+
+                    if (newArea < resultArea) result = size;
+                }
+            }
+        }
+
+        return result;
+    }
 
     private void onMeasureFinish(){
         countDownField.setText("DONE");
@@ -237,93 +383,6 @@ public class MainActivity extends AppCompatActivity {
 
         startButton.setText(R.string.startMeasuring);
         measuring = !measuring;
-    }
-
-    @Override
-    public void onResume() {
-        super.onResume();
-
-        wakeLock.acquire(10*60*1000L /*10 minutes*/);
-
-        camera = Camera.open();
-    }
-
-    @Override
-    public void onPause() {
-        super.onPause();
-
-        wakeLock.release();
-
-        camera.setPreviewCallback(null);
-        camera.stopPreview();
-        camera.release();
-        camera = null;
-    }
-
-    private SurfaceHolder.Callback surfaceCallback = new SurfaceHolder.Callback() {
-        @Override
-        public void surfaceCreated(SurfaceHolder holder) {
-            try {
-                camera.setPreviewDisplay(previewHolder);
-            } catch (Throwable t) {
-                Log.e("surfaceCallback", "Exception in setPreviewDisplay()", t);
-            }
-        }
-
-        @Override
-        public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-            Camera.Parameters parameters = camera.getParameters();
-            Camera.Size size = getSmallestPreviewSize(width, height, parameters);
-            if (size != null) {
-                parameters.setPreviewSize(size.width, size.height);
-                Log.d(TAG, "Using width=" + size.width + " height=" + size.height);
-            }
-            camera.setParameters(parameters);
-            camera.setDisplayOrientation(90);
-            camera.startPreview();
-        }
-
-        @Override
-        public void surfaceDestroyed(SurfaceHolder holder) {
-            //Doing nothing
-        }
-    };
-
-    private Camera.PreviewCallback previewCallback = new Camera.PreviewCallback() {
-        @Override
-        public void onPreviewFrame(byte[] data, Camera cam) {
-
-            if (data == null) throw new NullPointerException();
-            Camera.Size size = cam.getParameters().getPreviewSize();
-            if (size == null) throw new NullPointerException();
-
-            int width = size.width;
-            int height = size.height;
-
-            int[] imgAvgs = ImageProcessing.decodeYUV420SPtoRedAvg(data.clone(), width, height);
-            redsums.add(imgAvgs[0]);
-            Double progress = (double)redsums.size()/530*100;
-            progressBar.setProgress(progress.intValue());
-        }
-    };
-
-    private Camera.Size getSmallestPreviewSize(int width, int height, Camera.Parameters parameters) {
-        Camera.Size result = null;
-
-        for (Camera.Size size : parameters.getSupportedPreviewSizes()) {
-            if (size.width <= width && size.height <= height) {
-                if (result == null) {
-                    result = size;
-                } else {
-                    int resultArea = result.width * result.height;
-                    int newArea = size.width * size.height;
-
-                    if (newArea < resultArea) result = size;
-                }
-            }
-        }
-
-        return result;
     }
 
     private DataPoint[] getDataPoints(ArrayList<Integer> sums){
