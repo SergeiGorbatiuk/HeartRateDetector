@@ -71,7 +71,8 @@ public class MainActivity extends AppCompatActivity {
 //                    if (camera == null){
 //                        camera = Camera.open();
 //                    }
-                    initialize();
+//                    initialize();
+                    this.recreate();
                 }
                 else {
 
@@ -192,13 +193,11 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
-//        if (camera == null){
-//            camera = Camera.open();
-//        }
     }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        Log.e("onCreate", "started");
         setTheme(R.style.AppTheme);
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
@@ -227,7 +226,9 @@ public class MainActivity extends AppCompatActivity {
         int permission = PermissionChecker.checkSelfPermission(this, Manifest.permission.CAMERA);
         if (permission == PermissionChecker.PERMISSION_GRANTED){
             Log.e("onResume", "permission granted");
-            wakeLock.acquire(10*60*1000L /*10 minutes*/);
+            if (wakeLock != null){
+                wakeLock.acquire(10*60*1000L /*10 minutes*/);
+            }
             if (camera == null){
                 camera = Camera.open();
             }
@@ -240,8 +241,10 @@ public class MainActivity extends AppCompatActivity {
         Log.e("onPause", "here");
         int permission = PermissionChecker.checkSelfPermission(this, Manifest.permission.CAMERA);
         if (permission == PermissionChecker.PERMISSION_GRANTED){
-            if (camera != null){
+            if (wakeLock != null){
                 wakeLock.release();
+            }
+            if (camera != null){
                 camera.setPreviewCallback(null);
                 camera.stopPreview();
                 camera.release();
