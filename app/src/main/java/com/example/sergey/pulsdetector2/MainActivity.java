@@ -180,15 +180,7 @@ public class MainActivity extends AppCompatActivity {
                     measuring = !measuring;
                 }
                 else{
-                    progressBar.setVisibility(View.INVISIBLE);
-                    timerToStart.cancel();
-                    timerToGo.cancel();
-                    camera.setPreviewCallback(null);
-                    Camera.Parameters parameters = camera.getParameters();
-                    parameters.setFlashMode(Parameters.FLASH_MODE_OFF);
-                    countDownField.setText("");
-                    camera.setParameters(parameters);
-                    startButton.setText(R.string.startMeasuring);
+                    cancellationMotions();
                     measuring = !measuring;
                 }
             }
@@ -241,6 +233,10 @@ public class MainActivity extends AppCompatActivity {
         Log.e("onPause", "here");
         int permission = PermissionChecker.checkSelfPermission(this, Manifest.permission.CAMERA);
         if (permission == PermissionChecker.PERMISSION_GRANTED){
+            if (measuring){
+                cancellationMotions();
+                measuring = !measuring;
+            }
             if (wakeLock != null){
                 wakeLock.release();
             }
@@ -386,6 +382,18 @@ public class MainActivity extends AppCompatActivity {
 
         startButton.setText(R.string.startMeasuring);
         measuring = !measuring;
+    }
+
+    private void cancellationMotions(){
+        progressBar.setVisibility(View.INVISIBLE);
+        timerToStart.cancel();
+        timerToGo.cancel();
+        camera.setPreviewCallback(null);
+        Camera.Parameters parameters = camera.getParameters();
+        parameters.setFlashMode(Parameters.FLASH_MODE_OFF);
+        countDownField.setText("");
+        camera.setParameters(parameters);
+        startButton.setText(R.string.startMeasuring);
     }
 
     private DataPoint[] getDataPoints(ArrayList<Integer> sums){
