@@ -1,7 +1,5 @@
 package com.example.sergey.pulsdetector2;
 
-import android.util.Log;
-
 import java.util.ArrayList;
 
 /**
@@ -121,10 +119,10 @@ public class FourierTransformer {
     }
 
     void cleanResults(double[] freqs, double[] amplitudes, ArrayList<Integer> bpm, ArrayList<Double> amps){
-        int minPuls = 35;
-        int maxPuls = 200;
+        int minPulse = 35;
+        int maxPulse = 200;
         for (int i = 0; i < freqs.length; i++){
-            if (freqs[i]*60 >= minPuls && freqs[i]*60 <= maxPuls){
+            if (freqs[i]*60 >= minPulse && freqs[i]*60 <= maxPulse){
                 bpm.add((int)Math.round(freqs[i]*60));
 //                Log.e("TAG", (int)Math.round(freqs[i]*60) +"");
                 amps.add(amplitudes[i]);
@@ -132,25 +130,7 @@ public class FourierTransformer {
         }
     }
 
-    Integer getMostProbablePuls(ArrayList<Integer> freqs, ArrayList<Double> amplitudes){
-//        Long max1 = 0L;
-//        Double maxamp1 = .0;
-//        Long max2 = 0L;
-//        Double maxamp2 = .0;
-//        for (int i = 0; i < freqs.size(); i++){
-//            Double curamp = amplitudes.get(i);
-//            if (curamp > maxamp1){
-//                maxamp2 = maxamp1;
-//                maxamp1 = curamp;
-//                max2 = max1;
-//                max1 = freqs.get(i);
-//            }
-//            else if (curamp > maxamp2){
-//                maxamp2 = curamp;
-//                max2 = freqs.get(i);
-//            }
-//        }
-//        return new long[]{max1, max2};
+    Integer getMostProbablePulse(ArrayList<Integer> freqs, ArrayList<Double> amplitudes){
         Integer max = 0;
         Double amp = .0;
         for (int i = 0; i < freqs.size(); i++){

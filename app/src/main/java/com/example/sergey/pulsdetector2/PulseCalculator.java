@@ -1,6 +1,6 @@
 package com.example.sergey.pulsdetector2;
 
-import android.util.Log;
+
 
 import java.util.ArrayList;
 import java.util.List;
@@ -14,14 +14,14 @@ import java.util.concurrent.Future;
  * Created by sergey on 17.05.18.
  */
 
-public class PulsCalculator {
+public class PulseCalculator {
 
     private int intervals_count = 3;
     private int measure_length = 512;
     private int interval_length = 256;
     private Double sampleFrequency;
 
-    public PulsCalculator(int intervals, Double sampleFrequency){
+    public PulseCalculator(int intervals, Double sampleFrequency){
         this.intervals_count = intervals;
         this.sampleFrequency = sampleFrequency;
     }
@@ -41,10 +41,10 @@ public class PulsCalculator {
         ArrayList<Integer> BPMs = new ArrayList<>();
         ArrayList<Double> amps = new ArrayList<>();
         FFT.cleanResults(freqs, amplitudes, BPMs, amps);
-        return FFT.getMostProbablePuls(BPMs, amps);
+        return FFT.getMostProbablePulse(BPMs, amps);
     }
 
-    public ArrayList<Integer> CalculatePuls(ArrayList<Integer> redsums){
+    public ArrayList<Integer> CalculatePulseOverIntervals(ArrayList<Integer> redsums){
         if (measure_length != interval_length + interval_length/2*(intervals_count - 1)){
             throw new RuntimeException("Cannot split measure of length " + measure_length
                     + " into " + intervals_count + " intervals of length " + interval_length);
@@ -70,9 +70,8 @@ public class PulsCalculator {
             ArrayList<Integer> results = new ArrayList<>();
             for (Future<Object> future:
                  invokeAll) {
-                Integer pulsval = (Integer)future.get();
-                Log.e("INTNAL", pulsval.toString());
-                results.add(pulsval);
+                Integer pulseval = (Integer)future.get();
+                results.add(pulseval);
             }
             return results;
         }
@@ -82,6 +81,52 @@ public class PulsCalculator {
             pool.shutdown();
         }
         return null;//rework
+    }
+
+    public Integer CalculatePulseNoIntervals(ArrayList<Integer> redsums, ArrayList<Integer> BPMs, ArrayList<Double> amps){
+        int interlength = redsums.size();
+        FourierTransformer FFT = new FourierTransformer(interlength);
+
+        double[] ys = new double[interlength];
+        double[] xs = new double[interlength];
+        for (int i = 0; i < interlength; i++){
+            ys[i] = 0;
+            xs[i] = redsums.get(i);
+        }
+
+        FFT.fft(xs, ys);
+        double[] freqs = new double[interlength / 2];
+        double[] amplitudes = new double[interlength / 2];
+
+        FFT.interpretFourier(xs, ys, freqs, amplitudes, sampleFrequency, interlength);
+
+        FFT.cleanResults(freqs, amplitudes, BPMs, amps);
+        return FFT.getMostProbablePulse(BPMs, amps);
+    }
+
+    public Integer CalculatePulseNoIntervals(ArrayList<Integer> redsums){
+        int interlength = redsums.size();
+        FourierTransformer FFT = new FourierTransformer(interlength);
+
+        double[] ys = new double[interlength];
+        double[] xs = new double[interlength];
+        for (int i = 0; i < interlength; i++){
+            ys[i] = 0;
+            xs[i] = redsums.get(i);
+        }
+
+        FFT.fft(xs, ys);
+        double[] freqs = new double[interlength / 2];
+        double[] amplitudes = new double[interlength / 2];
+
+        FFT.interpretFourier(xs, ys, freqs, amplitudes, sampleFrequency, interlength);
+
+        ArrayList<Integer> BPMs = new ArrayList<>();
+        ArrayList<Double> amps = new ArrayList<>();
+
+        FFT.cleanResults(freqs, amplitudes, BPMs, amps);
+        return FFT.getMostProbablePulse(BPMs, amps);
+
     }
 
     private int[][] SplitInterval(Integer[] relevant){

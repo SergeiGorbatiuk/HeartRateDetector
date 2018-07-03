@@ -3,11 +3,10 @@ package com.example.sergey.pulsdetector2;
 import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
-import android.content.res.ColorStateList;
 import android.graphics.Color;
-import android.graphics.SurfaceTexture;
 import android.hardware.Camera;
 import android.hardware.Camera.Parameters;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.CountDownTimer;
 import android.os.PowerManager;
@@ -20,41 +19,38 @@ import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
 import android.widget.Button;
-import android.widget.CompoundButton;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
-import android.widget.ToggleButton;
 
 import com.jjoe64.graphview.GraphView;
 import com.jjoe64.graphview.series.DataPoint;
 import com.jjoe64.graphview.series.LineGraphSeries;
 
-import java.io.IOException;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Predicate;
 
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "HeartRateMonitor";
-    private static final AtomicBoolean processing = new AtomicBoolean(false);
 
     private static SurfaceView preview = null;
     private static SurfaceHolder previewHolder = null;
     private static Camera camera = null;
-    CountDownTimer timerToStart, timerToGo, additionalTimer;
-    TextView countDownField, resultTextField;
-    Button startButton;
-    GraphView graph, graphFur;
-    Boolean measuring = false;
-    ArrayList<Integer> redsums = new ArrayList<>();
-    FourierTransformer FFT = new FourierTransformer(512);
-    Integer intervals_count = 3;
-    Integer timePassed = 0;
-    Double sampleFrequency;
-    ProgressBar progressBar;
+    private CountDownTimer timerToStart;
+    private CountDownTimer timerToGo;
+    private CountDownTimer additionalTimer;
+    private TextView countDownField;
+    private TextView resultTextField;
+    private Button startButton;
+    private GraphView graph;
+    private GraphView graphFur;
+    private Boolean measuring = false;
+    private ArrayList<Integer> redsums = new ArrayList<>();
+    private Integer intervals_count = 3;
+    private Integer timePassed = 0;
+    private Double sampleFrequency;
+    private ProgressBar progressBar;
 
 
     private static PowerManager.WakeLock wakeLock = null;
@@ -68,10 +64,6 @@ public class MainActivity extends AppCompatActivity {
                 if (grantResults.length > 0
                         && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                     Log.e("Permission", "just been granted");
-//                    if (camera == null){
-//                        camera = Camera.open();
-//                    }
-//                    initialize();
                     this.recreate();
                 }
                 else {
@@ -93,8 +85,9 @@ public class MainActivity extends AppCompatActivity {
         //previewHolder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
 
         PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
-        wakeLock = pm.newWakeLock(PowerManager.FULL_WAKE_LOCK, "DoNotDimScreen");
-
+        if (pm != null) {
+            wakeLock = pm.newWakeLock(PowerManager.FULL_WAKE_LOCK, "DoNotDimScreen");
+        }
 
 
         countDownField = (TextView)findViewById(R.id.countDownField);
@@ -122,14 +115,31 @@ public class MainActivity extends AppCompatActivity {
             }
         };
 
-        timerToGo = new CountDownTimer(18000, 18000) {
+        timerToGo = new CountDownTimer(18000, 1000) {
             @Override
             public void onTick(long millisUntilFinished) {
+                timePassed += 1;
+                if (redsums.size() < 500){
+                    if (redsums.size() >= 256){
+                        double sampleFreq = 256.0/timePassed;
+                        final ArrayList<Integer> redcopy = (ArrayList<Integer>)redsums.clone();
+                        new PreResultCalculator(256, sampleFreq).execute(redcopy);
+                    }
+                    else if(redsums.size() >= 128){
+                        double sampleFreq = 128.0/timePassed;
+                        final ArrayList<Integer> redcopy = (ArrayList<Integer>)redsums.clone();
+                        new PreResultCalculator(128, sampleFreq).execute(redcopy);
+                    }
+                    else if (redsums.size() >= 64){
+                        double sampleFreq = 64.0/timePassed;
+                        final ArrayList<Integer> redcopy = (ArrayList<Integer>)redsums.clone();
+                        new PreResultCalculator(64, sampleFreq).execute(redcopy);
+                    }
+                }
             }
 
             @Override
             public void onFinish() {
-                timePassed += 18;
                 if (redsums.size() < 530){
                     additionalTimer.start();
                 }
@@ -207,8 +217,6 @@ public class MainActivity extends AppCompatActivity {
 
 
     }
-
-
 
 
     @Override
@@ -328,46 +336,24 @@ public class MainActivity extends AppCompatActivity {
         sampleFrequency = .0 + redsums.size()/timePassed;
         Log.e("FPS", sampleFrequency.toString());
 
-        PulsCalculator pulsCalculator = new PulsCalculator(intervals_count, sampleFrequency);
-        ArrayList<Integer> intervalResults = pulsCalculator.CalculatePuls(redsums);
 
         while (redsums.size() > 512){ //ineffective!
             redsums.remove(0);
         }
-        graph.removeAllSeries();
-        LineGraphSeries<DataPoint> red_series = new LineGraphSeries<>(getDataPoints(redsums));
-        red_series.setColor(Color.RED);
-        graph.addSeries(red_series);
-        graph.setVisibility(View.VISIBLE);
+
+        // process intervals
+        PulseCalculator PulseCalculator = new PulseCalculator(intervals_count, sampleFrequency);
+        ArrayList<Integer> intervalResults = PulseCalculator.CalculatePulseOverIntervals(redsums);
 
 
-        double[] ys = new double[512];
-        double[] xs = new double[512];
-        for (int i = 0; i < 512; i++){
-            ys[i] = 0;
-            xs[i] = redsums.get(i);
-        }
-
-        FFT.fft(xs, ys);
-        double[] freqs = new double[256];
-        double[] amplitudes = new double[256];
-
-        FFT.interpretFourier(xs, ys, freqs, amplitudes, sampleFrequency, 512);
-
+        // processing main interval
         ArrayList<Integer> BPMs = new ArrayList<>();
         ArrayList<Double> amps = new ArrayList<>();
-        FFT.cleanResults(freqs, amplitudes, BPMs, amps);
-        graphFur.removeAllSeries();
-        LineGraphSeries<DataPoint> fur_series = new LineGraphSeries<>(getSignalSpecterPoints(BPMs, amps));
-        graphFur.addSeries(fur_series);
-        graphFur.setVisibility(View.VISIBLE);
+        Integer result = PulseCalculator.CalculatePulseNoIntervals(redsums, BPMs ,amps);
 
 
-
-        Integer result = FFT.getMostProbablePuls(BPMs, amps);
-        Log.e("MAIN_INTVAL", result.toString());
-
-        result = GetPulsIfPossible(result, intervalResults);
+        // visualize
+        result = GetPulseIfPossible(result, intervalResults);
         if (result == null){
             resultTextField.setText("Bad measurement");
         }
@@ -376,6 +362,17 @@ public class MainActivity extends AppCompatActivity {
         }
 
         resultTextField.setVisibility(View.VISIBLE);
+
+        graph.removeAllSeries();
+        LineGraphSeries<DataPoint> red_series = new LineGraphSeries<>(getDataPoints(redsums));
+        red_series.setColor(Color.RED);
+        graph.addSeries(red_series);
+        graph.setVisibility(View.VISIBLE);
+
+        graphFur.removeAllSeries();
+        LineGraphSeries<DataPoint> fur_series = new LineGraphSeries<>(getSignalSpecterPoints(BPMs, amps));
+        graphFur.addSeries(fur_series);
+        graphFur.setVisibility(View.VISIBLE);
 
 
 
@@ -389,6 +386,7 @@ public class MainActivity extends AppCompatActivity {
         timerToStart.cancel();
         timerToGo.cancel();
         camera.setPreviewCallback(null);
+        resultTextField.setVisibility(View.INVISIBLE);
         Camera.Parameters parameters = camera.getParameters();
         parameters.setFlashMode(Parameters.FLASH_MODE_OFF);
         countDownField.setText("");
@@ -412,12 +410,12 @@ public class MainActivity extends AppCompatActivity {
         return points;
     }
 
-    private Integer GetPulsIfPossible(Integer wholeInterval, ArrayList<Integer> intervals){
+    private Integer GetPulseIfPossible(Integer wholeInterval, ArrayList<Integer> intervals){
         // hardcoded for 3 intervals for now
         Integer m1 = intervals.get(0);
         Integer m2 = intervals.get(1);
         Integer m3 = intervals.get(2);
-        Integer common = -1;
+        Integer common;
         if (m1.equals(m2) && m2.equals(m3)) {
             return m1;
         }
@@ -437,5 +435,38 @@ public class MainActivity extends AppCompatActivity {
             return (common + wholeInterval)/2;
         }
         else return null;
+    }
+
+    class PreResultCalculator extends AsyncTask<ArrayList<Integer>, Void, Integer>{
+
+        private Double sampleFreq;
+        private Integer interlength;
+
+        public PreResultCalculator(Integer interlength, Double sampleFreq){
+            this.sampleFreq = sampleFreq;
+            this.interlength = interlength;
+        }
+
+        @Override
+        protected Integer doInBackground(ArrayList<Integer>[] params) {
+            ArrayList<Integer> redsums = params[0];
+            while (redsums.size() > interlength){ //twf??
+                redsums.remove(0);
+            }
+            PulseCalculator pc = new PulseCalculator(3, this.sampleFreq);
+            return pc.CalculatePulseNoIntervals(redsums);
+        }
+
+        @Override
+        protected void onPostExecute(Integer result) {
+            super.onPostExecute(result);
+            if (result != null){
+                resultTextField.setText("preliminary result: " + result.toString());
+            }
+            else {
+                resultTextField.setText("preliminary result: unclear");
+            }
+            resultTextField.setVisibility(View.VISIBLE);
+        }
     }
 }

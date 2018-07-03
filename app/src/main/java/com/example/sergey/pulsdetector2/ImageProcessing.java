@@ -38,7 +38,7 @@ abstract class ImageProcessing {
                 res_sums[0] += red;
                 int green = (pixel >> 8) & 0xff;
                 res_sums[1] += green;
-                int blue = (pixel >> 0) & 0xff;
+                int blue = (pixel) & 0xff;
                 res_sums[2] += blue;
             }
         }
