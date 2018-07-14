@@ -199,8 +199,6 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        Log.e("onCreate", "started");
-        setTheme(R.style.AppTheme);
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         int permission = PermissionChecker.checkSelfPermission(this, Manifest.permission.CAMERA);
