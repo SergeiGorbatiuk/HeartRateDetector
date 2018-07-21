@@ -20,6 +20,8 @@ import android.view.SurfaceView;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ProgressBar;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -38,9 +40,8 @@ public class MainActivity extends AppCompatActivity {
     private static SurfaceHolder previewHolder = null;
     private static Camera camera = null;
     private CountDownTimer timerToStart;
-    private CountDownTimer timerToGo;
-    private CountDownTimer additionalTimer;
-    private TextView countDownField;
+    private CountDownTimer TTGRelax, TTGPeace, additionalTimer;
+    private TextView countDownField, mode_cap;
     private TextView resultTextField;
     private Button startButton;
     private GraphView graph;
@@ -51,6 +52,10 @@ public class MainActivity extends AppCompatActivity {
     private Integer timePassed = 0;
     private Double sampleFrequency;
     private ProgressBar progressBar;
+    private RadioGroup radioGroup;
+    private Mode mode = Mode.Peace;
+    private PeaceMeasurer peaceMeasurer = new PeaceMeasurer();
+    private RelaxMeasurer relaxMeasurer = new RelaxMeasurer();
 
 
     private static PowerManager.WakeLock wakeLock = null;
@@ -77,12 +82,10 @@ public class MainActivity extends AppCompatActivity {
 
     private void initialize(){
 
-        Log.e("initialize", "start");
-
         preview = (SurfaceView)findViewById(R.id.preview);
         previewHolder = preview.getHolder();
         previewHolder.addCallback(surfaceCallback);
-        //previewHolder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
+
 
         PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
         if (pm != null) {
@@ -94,12 +97,16 @@ public class MainActivity extends AppCompatActivity {
         resultTextField = (TextView)findViewById(R.id.resultTextField);
         progressBar = (ProgressBar)findViewById(R.id.progress_bar);
         progressBar.setMax(100);
-        //progressBar.setProgressTintList(ColorStateList.valueOf(0xff7733));
         startButton = (Button)findViewById(R.id.buttonStart);
         graph = (GraphView)findViewById(R.id.graph);
         graphFur = (GraphView)findViewById(R.id.graphFur);
+        radioGroup = (RadioGroup)findViewById(R.id.radio_group);
+        mode_cap = (TextView)findViewById(R.id.mode_cap);
 
-        timerToStart = new CountDownTimer(3000, 1000) {
+
+
+        timerToStart = new CountDownTimer(3000, 1000){
+
             @Override
             public void onTick(long millisUntilFinished) {
                 Integer secsToGo = Math.round(millisUntilFinished/1000);
@@ -111,48 +118,58 @@ public class MainActivity extends AppCompatActivity {
                 countDownField.setText("Measuring. Hold still!");
                 progressBar.setVisibility(View.VISIBLE);
                 camera.setPreviewCallback(previewCallback);
-                timerToGo.start();
+                switch (mode){
+                    case Peace:{
+                        TTGPeace.start();
+                        break;
+                    }
+                    case Relax:{
+                        TTGRelax.start();
+                    }
+                }
             }
         };
 
-        timerToGo = new CountDownTimer(18000, 1000) {
+        TTGRelax = new CountDownTimer(1000, 500) {
             @Override
             public void onTick(long millisUntilFinished) {
-                timePassed += 1;
-                if (redsums.size() < 500){
-                    if (redsums.size() >= 256){
-                        double sampleFreq = 256.0/timePassed;
-                        final ArrayList<Integer> redcopy = (ArrayList<Integer>)redsums.clone();
-                        new PreResultCalculator(256, sampleFreq).execute(redcopy);
-                    }
-                    else if(redsums.size() >= 128){
-                        double sampleFreq = 128.0/timePassed;
-                        final ArrayList<Integer> redcopy = (ArrayList<Integer>)redsums.clone();
-                        new PreResultCalculator(128, sampleFreq).execute(redcopy);
-                    }
-                    else if (redsums.size() >= 64){
-                        double sampleFreq = 64.0/timePassed;
-                        final ArrayList<Integer> redcopy = (ArrayList<Integer>)redsums.clone();
-                        new PreResultCalculator(64, sampleFreq).execute(redcopy);
-                    }
-                }
+                Integer progress = Math.round((60000 - millisUntilFinished)/600);
+                progressBar.setProgress(progress);
             }
 
             @Override
             public void onFinish() {
+                camera.setPreviewCallback(null);
+                onMeasureFinish();
+            }
+        };
+
+        TTGPeace = new CountDownTimer(18000, 250) {
+            @Override
+            public void onTick(long millisUntilFinished) {
+                Integer progress = Math.round((float)redsums.size() / 530*100);
+                progressBar.setProgress(progress);
+            }
+
+            @Override
+            public void onFinish() {
+
+                timePassed += 18;
                 if (redsums.size() < 530){
                     additionalTimer.start();
                 }
                 else {
+                    camera.setPreviewCallback(null);
                     onMeasureFinish();
                 }
             }
         };
 
-        additionalTimer = new CountDownTimer(1000, 1000) {
+        additionalTimer = new CountDownTimer(1000, 250) {
             @Override
             public void onTick(long millisUntilFinished) {
-
+                Integer progress = Math.round((float)redsums.size() / 530*100);
+                progressBar.setProgress(progress);
             }
 
             @Override
@@ -171,27 +188,46 @@ public class MainActivity extends AppCompatActivity {
         startButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if(!measuring){
-                    graph.setVisibility(View.GONE);
-                    graphFur.setVisibility(View.GONE);
-                    resultTextField.setVisibility(View.GONE);
-                    preview.setVisibility(View.VISIBLE);
+                if (mode != null){
+                    if(!measuring){
+                        graph.setVisibility(View.GONE);
+                        graphFur.setVisibility(View.GONE);
+                        resultTextField.setVisibility(View.GONE);
+                        preview.setVisibility(View.VISIBLE);
+                        mode_cap.setVisibility(View.GONE);
+                        radioGroup.setVisibility(View.GONE);
 
-                    progressBar.setProgress(0);
-                    redsums.clear();
-                    timePassed = 0;
+                        progressBar.setProgress(0);
+                        redsums.clear();
+                        timePassed = 0;
 
-                    Camera.Parameters parameters = camera.getParameters();
-                    parameters.setFlashMode(Camera.Parameters.FLASH_MODE_TORCH);
-                    camera.setParameters(parameters);
-                    countDownField.setText(getText(R.string.toGo) + "3");
-                    startButton.setText(getText(R.string.stopMeasuring));
-                    timerToStart.start();
-                    measuring = !measuring;
+                        Camera.Parameters parameters = camera.getParameters();
+                        parameters.setFlashMode(Camera.Parameters.FLASH_MODE_TORCH);
+                        camera.setParameters(parameters);
+                        countDownField.setText(getText(R.string.toGo) + "3");
+                        startButton.setText(getText(R.string.stopMeasuring));
+                        timerToStart.start();
+                        measuring = !measuring;
+                    }
+                    else{
+                        cancellationMotions();
+                        measuring = !measuring;
+                    }
                 }
-                else{
-                    cancellationMotions();
-                    measuring = !measuring;
+                else {
+                    Toast.makeText(MainActivity.this, "Choose mode, please", Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+
+        radioGroup.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(RadioGroup group, int checkedId) {
+                if (checkedId == R.id.radio_peace){
+                    mode = Mode.Peace;
+                }
+                else {
+                    mode = Mode.Relax;
                 }
             }
         });
@@ -199,6 +235,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        setTheme(R.style.AppTheme);
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         int permission = PermissionChecker.checkSelfPermission(this, Manifest.permission.CAMERA);
@@ -215,7 +252,6 @@ public class MainActivity extends AppCompatActivity {
 
 
     }
-
 
     @Override
     public void onResume() {
@@ -297,8 +333,6 @@ public class MainActivity extends AppCompatActivity {
 
             int[] imgAvgs = ImageProcessing.decodeYUV420SPtoRedAvg(data.clone(), width, height);
             redsums.add(imgAvgs[0]);
-            Double progress = (double)redsums.size()/530*100;
-            progressBar.setProgress(progress.intValue());
         }
     };
 
@@ -331,49 +365,51 @@ public class MainActivity extends AppCompatActivity {
         preview.setVisibility(View.GONE);
         progressBar.setVisibility(View.INVISIBLE);
 
-        sampleFrequency = .0 + redsums.size()/timePassed;
-        Log.e("FPS", sampleFrequency.toString());
+        sampleFrequency = (.0 + redsums.size())/timePassed;
 
+        switch (mode){
+            case Peace:{
+                // visualize
+                Integer result = peaceMeasurer.getPulse(redsums, sampleFrequency);
+                if (result == null){
+                    resultTextField.setText("Bad measurement");
+                }
+                else{
+                    resultTextField.setText("Most probable result: " + result);
+                }
 
-        while (redsums.size() > 512){ //ineffective!
-            redsums.remove(0);
+                resultTextField.setVisibility(View.VISIBLE);
+
+                graph.removeAllSeries();
+                LineGraphSeries<DataPoint> red_series = new LineGraphSeries<>(VisUtils.getDataPoints(redsums));
+                red_series.setColor(Color.RED);
+                graph.addSeries(red_series);
+                graph.setVisibility(View.VISIBLE);
+
+                graphFur.removeAllSeries();
+                LineGraphSeries<DataPoint> fur_series = new LineGraphSeries<>(peaceMeasurer.getBPMampPoints());
+                graphFur.addSeries(fur_series);
+                graphFur.setVisibility(View.VISIBLE);
+                break;
+            }
+            case Relax:{
+                graph.removeAllSeries();
+                LineGraphSeries<DataPoint> red_series = new LineGraphSeries<>(VisUtils.getDataPoints(redsums));
+                red_series.setColor(Color.RED);
+                graph.addSeries(red_series);
+                graph.setVisibility(View.VISIBLE);
+
+                ArrayList<Integer> result_points = relaxMeasurer.getPulse(redsums);
+
+                graphFur.removeAllSeries();
+                LineGraphSeries<DataPoint> fur_series = new LineGraphSeries<>(VisUtils.getDataPoints(result_points));
+                graphFur.addSeries(fur_series);
+                graphFur.setVisibility(View.VISIBLE);
+            }
         }
 
-        // process intervals
-        PulseCalculator PulseCalculator = new PulseCalculator(intervals_count, sampleFrequency);
-        ArrayList<Integer> intervalResults = PulseCalculator.CalculatePulseOverIntervals(redsums);
-
-
-        // processing main interval
-        ArrayList<Integer> BPMs = new ArrayList<>();
-        ArrayList<Double> amps = new ArrayList<>();
-        Integer result = PulseCalculator.CalculatePulseNoIntervals(redsums, BPMs ,amps);
-
-
-        // visualize
-        result = GetPulseIfPossible(result, intervalResults);
-        if (result == null){
-            resultTextField.setText("Bad measurement");
-        }
-        else{
-            resultTextField.setText("Most probable result: " + result);
-        }
-
-        resultTextField.setVisibility(View.VISIBLE);
-
-        graph.removeAllSeries();
-        LineGraphSeries<DataPoint> red_series = new LineGraphSeries<>(getDataPoints(redsums));
-        red_series.setColor(Color.RED);
-        graph.addSeries(red_series);
-        graph.setVisibility(View.VISIBLE);
-
-        graphFur.removeAllSeries();
-        LineGraphSeries<DataPoint> fur_series = new LineGraphSeries<>(getSignalSpecterPoints(BPMs, amps));
-        graphFur.addSeries(fur_series);
-        graphFur.setVisibility(View.VISIBLE);
-
-
-
+        mode_cap.setVisibility(View.VISIBLE);
+        radioGroup.setVisibility(View.VISIBLE);
 
         startButton.setText(R.string.startMeasuring);
         measuring = !measuring;
@@ -381,8 +417,11 @@ public class MainActivity extends AppCompatActivity {
 
     private void cancellationMotions(){
         progressBar.setVisibility(View.INVISIBLE);
+        mode_cap.setVisibility(View.VISIBLE);
+        radioGroup.setVisibility(View.VISIBLE);
         timerToStart.cancel();
-        timerToGo.cancel();
+        TTGRelax.cancel();
+        TTGPeace.cancel();
         camera.setPreviewCallback(null);
         resultTextField.setVisibility(View.INVISIBLE);
         Camera.Parameters parameters = camera.getParameters();
@@ -392,79 +431,40 @@ public class MainActivity extends AppCompatActivity {
         startButton.setText(R.string.startMeasuring);
     }
 
-    private DataPoint[] getDataPoints(ArrayList<Integer> sums){
-        DataPoint[] points = new DataPoint[sums.size()];
-        for (int i = 0; i < sums.size(); i++){
-            points[i] = new DataPoint(i, sums.get(i));
-        }
-        return points;
-    }
+//    class PreResultCalculator extends AsyncTask<ArrayList<Integer>, Void, Integer>{
+//
+//        private Double sampleFreq;
+//        private Integer interlength;
+//
+//        public PreResultCalculator(Integer interlength, Double sampleFreq){
+//            this.sampleFreq = sampleFreq;
+//            this.interlength = interlength;
+//        }
+//
+//        @Override
+//        protected Integer doInBackground(ArrayList<Integer>[] params) {
+//            ArrayList<Integer> redsums = params[0];
+//            while (redsums.size() > interlength){ //twf??
+//                redsums.remove(0);
+//            }
+//            PulseCalculator pc = new PulseCalculator(3, this.sampleFreq);
+//            return pc.CalculatePulseNoIntervals(redsums);
+//        }
+//
+//        @Override
+//        protected void onPostExecute(Integer result) {
+//            super.onPostExecute(result);
+//            if (result != null){
+//                resultTextField.setText("preliminary result: " + result.toString());
+//            }
+//            else {
+//                resultTextField.setText("preliminary result: unclear");
+//            }
+//            resultTextField.setVisibility(View.VISIBLE);
+//        }
+//    }
 
-    private DataPoint[] getSignalSpecterPoints(ArrayList<Integer> bpms, ArrayList<Double> amps){
-        DataPoint[] points = new DataPoint[bpms.size()];
-        for (int i = 0; i < bpms.size(); i++){
-            points[i] = new DataPoint(bpms.get(i), amps.get(i));
-        }
-        return points;
-    }
-
-    private Integer GetPulseIfPossible(Integer wholeInterval, ArrayList<Integer> intervals){
-        // hardcoded for 3 intervals for now
-        Integer m1 = intervals.get(0);
-        Integer m2 = intervals.get(1);
-        Integer m3 = intervals.get(2);
-        Integer common;
-        if (m1.equals(m2) && m2.equals(m3)) {
-            return m1;
-        }
-
-        if (m1.equals(m2)){
-            common = m1;
-        }
-        else if (m1.equals(m3)){
-            common = m1;
-        }
-        else if (m2.equals(m3)){
-            common = m2;
-        }
-        else return null;
-
-        if (common >= wholeInterval - 7 || common <= wholeInterval + 7){
-            return (common + wholeInterval)/2;
-        }
-        else return null;
-    }
-
-    class PreResultCalculator extends AsyncTask<ArrayList<Integer>, Void, Integer>{
-
-        private Double sampleFreq;
-        private Integer interlength;
-
-        public PreResultCalculator(Integer interlength, Double sampleFreq){
-            this.sampleFreq = sampleFreq;
-            this.interlength = interlength;
-        }
-
-        @Override
-        protected Integer doInBackground(ArrayList<Integer>[] params) {
-            ArrayList<Integer> redsums = params[0];
-            while (redsums.size() > interlength){ //twf??
-                redsums.remove(0);
-            }
-            PulseCalculator pc = new PulseCalculator(3, this.sampleFreq);
-            return pc.CalculatePulseNoIntervals(redsums);
-        }
-
-        @Override
-        protected void onPostExecute(Integer result) {
-            super.onPostExecute(result);
-            if (result != null){
-                resultTextField.setText("preliminary result: " + result.toString());
-            }
-            else {
-                resultTextField.setText("preliminary result: unclear");
-            }
-            resultTextField.setVisibility(View.VISIBLE);
-        }
+    enum Mode {
+        Peace, Relax
     }
 }

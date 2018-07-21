@@ -51,6 +51,27 @@
         android:layout_width="350dp"
         android:layout_height="350dp">
     </SurfaceView>
+    <TextView
+        android:id="@+id/mode_cap"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Режим измерения"/>
+    <RadioGroup
+        android:id="@+id/radio_group"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+        <RadioButton
+            android:text="Покой"
+            android:checked="true"
+            android:id="@+id/radio_peace"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+        <RadioButton
+            android:text="Нагрузка/Релаксация"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:id="@+id/radio_relax"/>
+    </RadioGroup>
     <com.jjoe64.graphview.GraphView
         android:visibility="gone"
         android:layout_width="match_parent"

@@ -104,7 +104,7 @@ public class PulseCalculator {
         return FFT.getMostProbablePulse(BPMs, amps);
     }
 
-    public Integer CalculatePulseNoIntervals(ArrayList<Integer> redsums){
+    private Integer CalculatePulseNoIntervals(ArrayList<Integer> redsums, Double sampleFrequency){
         int interlength = redsums.size();
         FourierTransformer FFT = new FourierTransformer(interlength);
 
@@ -127,6 +127,49 @@ public class PulseCalculator {
         FFT.cleanResults(freqs, amplitudes, BPMs, amps);
         return FFT.getMostProbablePulse(BPMs, amps);
 
+    }
+
+    public ArrayList<Integer> processFloatingWindow(ArrayList<Integer> redsums, final Double sampleFrequency, int shift, int window_size){
+        ArrayList<Integer> window = new ArrayList<>();
+        for (int i = 0; i<window_size; i++){
+            window.add(redsums.get(i));
+        }
+        int intervals = (redsums.size() - 512)/shift;
+        int current = 512;
+
+        ExecutorService service = Executors.newCachedThreadPool();
+        List<Callable<Integer>> tasks = new ArrayList<>();
+        try {
+            for (int i = 0; i < intervals; i++){
+                for (int j = 0; j < shift; j++){
+                    window.remove(0);
+                    window.add(redsums.get(current++));
+                }
+                final ArrayList<Integer> loc = (ArrayList<Integer>) window.clone();
+                tasks.add(new Callable<Integer>() {
+                    @Override
+                    public Integer call() throws Exception {
+                        return CalculatePulseNoIntervals(loc, sampleFrequency);
+                    }
+                });
+            }
+            List<Future<Integer>> invokeAll = service.invokeAll(tasks);
+            ArrayList<Integer> results = new ArrayList<>();
+            for (Future<Integer> future:
+                    invokeAll) {
+                Integer pulseval = (Integer)future.get();
+                results.add(pulseval);
+            }
+            return results;
+        }
+        catch (InterruptedException | ExecutionException e) {
+            e.printStackTrace();
+        }
+        finally {
+            service.shutdown();
+        }
+
+        return null;//fix later
     }
 
     private int[][] SplitInterval(Integer[] relevant){
