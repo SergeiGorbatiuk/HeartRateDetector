@@ -1,5 +1,5 @@
 package com.example.sergey.pulsdetector2;
-
+import com.example.sergey.pulsdetector2.RelaxMeasurer.RelaxResult;
 import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
@@ -130,7 +130,7 @@ public class MainActivity extends AppCompatActivity {
             }
         };
 
-        TTGRelax = new CountDownTimer(1000, 500) {
+        TTGRelax = new CountDownTimer(60000, 500) {
             @Override
             public void onTick(long millisUntilFinished) {
                 Integer progress = Math.round((60000 - millisUntilFinished)/600);
@@ -399,12 +399,25 @@ public class MainActivity extends AppCompatActivity {
                 graph.addSeries(red_series);
                 graph.setVisibility(View.VISIBLE);
 
-                ArrayList<Integer> result_points = relaxMeasurer.getPulse(redsums);
+                RelaxResult result = relaxMeasurer.getPulse(redsums);
+                if (result == null){
+                    resultTextField.setText("Bad measurement");
+                }
+                else {
+                    StringBuilder resb = new StringBuilder();
+                    resb.append("Lin: start - "+result.calcs[0][0]+", finish - "+result.calcs[1][0]+"\n");
+                    resb.append("Quad: start - "+result.calcs[0][1]+", finish - "+result.calcs[1][1]+"\n");
+                    resb.append("Ave: start - "+result.calcs[0][2]+", finish - "+result.calcs[1][2]);
+                    resultTextField.setText(resb.toString());
 
-                graphFur.removeAllSeries();
-                LineGraphSeries<DataPoint> fur_series = new LineGraphSeries<>(VisUtils.getDataPoints(result_points));
-                graphFur.addSeries(fur_series);
-                graphFur.setVisibility(View.VISIBLE);
+
+                    graphFur.removeAllSeries();
+                    LineGraphSeries<DataPoint> fur_series = new LineGraphSeries<>(VisUtils.getDataPoints(result.result));
+                    graphFur.addSeries(fur_series);
+                    graphFur.setVisibility(View.VISIBLE);
+                }
+
+                resultTextField.setVisibility(View.VISIBLE);
             }
         }
 

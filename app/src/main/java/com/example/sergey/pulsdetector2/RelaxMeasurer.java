@@ -16,22 +16,22 @@ public class RelaxMeasurer {
     Integer window_size = 512;
     Integer shift = 10;
     PulseCalculator pc = new PulseCalculator(3, .0);
-    Integer[] mockresult = {40,40,36,36,99,40,99,36,36,40,43,
-            102,36,102,40,102,102,86,102,86,102,102,96,102,
-            96,96,96,96,96,96,96,96,96,96,96,96,96,56,36,36,
-            56,96,36,36,36,96,96,36,96,43,43,73,36,43,69,56,
-            69,36,43,69,59,69,59,40,69,59,69,73,59,76,73,59,
-            73,63,73,40,40,73,63,73,40,63,66,66,40,66,83,76,
-            83,149,66,59,83,66,83,66,83,66,66,79,66,66,66,
-            66,66,66,66,66,66,66,79,79,79,79,66,66,66};
+    Integer[] mockresult = {128,128,128,128,128,121,121,128,117,121,128,
+            128,121,121,121,121,121,121,121,121,121,107,121,107,107,121,
+            107,121,107,107,107,107,107,107,107,107,107,107,104,107,104,
+            104,107,104,107,107,107,107,107,107,107,107,107,107,101,101,
+            101,101,101,101,101,101,101,101,101,101,101,101,97,91,97,91,
+            97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,
+            94,97,94,97,94,94,94,94,97,94,37,94,94,94,94,37,94,97,94,37,
+            94,94,94,94,94,94,94,94};
 
-    public ArrayList<Integer> getPulse(ArrayList<Integer> redsums){
-        double fps = 28;//(float)redsums.size() / 60;
+    public RelaxResult getPulse(ArrayList<Integer> redsums){
+        double fps = (double) redsums.size() / 60;
 //        for (int i = 0; i < (redsums.size() - window_size) % shift; i++){
 //            redsums.remove(0);
 //        }
 //
-//        ArrayList<Integer> results = pc.processFloatingWindow(redsums, fps, shift, window_size);
+        ArrayList<Integer> results = pc.processFloatingWindow(redsums, fps, shift, window_size);
 //        StringBuilder sb = new StringBuilder();
 //        sb.append("{");
 //        for (Integer i:
@@ -42,8 +42,7 @@ public class RelaxMeasurer {
 //        Log.e("reds", redsums.size()+"");
 //        Log.e("ress", sb.toString());
 //        Log.e("fps", fps+"");
-
-        ArrayList<Integer> results = new ArrayList<>(Arrays.asList(mockresult));
+//        ArrayList<Integer> results = new ArrayList<>(Arrays.asList(mockresult));
         ArrayList<Double> timestamps = new ArrayList<>(results.size());
         for (int i = 0; i<results.size(); i++){
             timestamps.add((256+i*shift)/fps);
@@ -51,9 +50,33 @@ public class RelaxMeasurer {
 
         cleanResults(results, timestamps);
 
-        doRegression(results, timestamps, 3);
+        double[] coefs1 = doRegression(results, timestamps, 1);
+        double[] coefs2 = doRegression(results, timestamps, 2);
+        if (coefs1[1] > 0) return null; // pulse does not decrease
 
-        return results;
+        double[][] coefst = {coefs1, coefs2};
+
+
+        return new RelaxResult(results, calculatePulseUsingCoefs(coefst));
+    }
+
+    private double[][] calculatePulseUsingCoefs(double[][] coefst){
+        double[][] calcs = new double[2][coefst.length+1];
+        double cumstart = 0, cumfin = 0;
+        for (int i = 0; i < coefst.length; i++){
+            calcs[0][i] = Math.round(coefst[i][0]*10)/10;
+            double sum = coefst[i][0];
+            cumstart += coefst[i][0];
+            for (int j = 1; j < coefst[i].length; j++){
+                sum += Math.pow(60, j)*coefst[i][j];
+            }
+            calcs[1][i] = Math.round(sum*10)/10;
+            cumfin += sum;
+        }
+        // average across different polynomials
+        calcs[0][coefst.length] = Math.round(cumstart/coefst.length*10)/10;
+        calcs[1][coefst.length] = Math.round(cumfin/coefst.length*10)/10;
+        return calcs;
     }
 
     private void cleanResults(ArrayList<Integer> results, ArrayList<Double> timestamps){
@@ -80,7 +103,7 @@ public class RelaxMeasurer {
         }
     }
 
-    private void doRegression(ArrayList<Integer> results, ArrayList<Double> timestamps, int deg){
+    private double[] doRegression(ArrayList<Integer> results, ArrayList<Double> timestamps, int deg){
         double[][] X = new double[timestamps.size()][deg+1];
         for(int i = 0; i < timestamps.size(); i++){
             X[i][0] = 1.;
@@ -96,28 +119,29 @@ public class RelaxMeasurer {
             y[i][0] = results.get(i);
         }
 
-        StringBuilder sbts = new StringBuilder();
-        StringBuilder sbr = new StringBuilder();
-        sbr.append("[");
-        sbts.append("[");
-        for (int i=0; i< results.size(); i++){
-            sbr.append(results.get(i)+",");
-            sbts.append(timestamps.get(i)+",");
-        }
-        sbr.append("]");
-        Log.e("results", sbr.toString());
-        sbts.append("]");
-        Log.e("tss", sbts.toString());
+//        StringBuilder sbts = new StringBuilder();
+//        StringBuilder sbr = new StringBuilder();
+//        sbr.append("[");
+//        sbts.append("[");
+//        for (int i=0; i< results.size(); i++){
+//            sbr.append(results.get(i)+",");
+//            sbts.append(timestamps.get(i)+",");
+//        }
+//        sbr.append("]");
+//        Log.e("results", sbr.toString());
+//        sbts.append("]");
+//        Log.e("tss", sbts.toString());
 
         double coefs[][] = multiply(multiply(invert(multiply(transpose(X), X)), transpose(X)), y);
-        StringBuilder sbc = new StringBuilder();
-        sbc.append("[");
-        for(int i=0; i<=deg; i++){
-            sbc.append(coefs[i][0]+",");
-        }
-        sbc.append("]");
-        Log.e("coefs", sbc.toString());
+//        StringBuilder sbc = new StringBuilder();
+//        sbc.append("[");
+//        for(int i=0; i<=deg; i++){
+//            sbc.append(coefs[i][0]+",");
+//        }
+//        sbc.append("]");
+//        Log.e("coefs", sbc.toString());
 
+        return transpose(coefs)[0];
     }
 
     private static double[][] multiply(double[][] A, double[][] B) {
@@ -149,7 +173,7 @@ public class RelaxMeasurer {
         return C;
     }
 
-    public static double[][] transpose(double [][] m){
+    private static double[][] transpose(double[][] m){
         double[][] temp = new double[m[0].length][m.length];
         for (int i = 0; i < m.length; i++)
             for (int j = 0; j < m[0].length; j++)
@@ -231,6 +255,15 @@ public class RelaxMeasurer {
                 for (int l = j + 1; l < n; ++l)
                     a[index[i]][l] -= pj * a[index[j]][l];
             }
+        }
+    }
+
+    public class RelaxResult{
+        ArrayList<Integer> result;
+        double[][] calcs;
+        public RelaxResult(ArrayList<Integer> result, double[][] calcs){
+            this.result = result;
+            this.calcs = calcs;
         }
     }
 }
