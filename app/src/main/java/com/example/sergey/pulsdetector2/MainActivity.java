@@ -404,11 +404,7 @@ public class MainActivity extends AppCompatActivity {
                     resultTextField.setText("Bad measurement");
                 }
                 else {
-                    StringBuilder resb = new StringBuilder();
-                    resb.append("Lin: start - "+result.calcs[0][0]+", finish - "+result.calcs[1][0]+"\n");
-                    resb.append("Quad: start - "+result.calcs[0][1]+", finish - "+result.calcs[1][1]+"\n");
-                    resb.append("Ave: start - "+result.calcs[0][2]+", finish - "+result.calcs[1][2]);
-                    resultTextField.setText(resb.toString());
+                    resultTextField.setText("Start: "+result.calcs[0]+", finish: "+result.calcs[1]);
 
 
                     graphFur.removeAllSeries();

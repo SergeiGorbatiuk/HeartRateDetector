@@ -1,7 +1,9 @@
 package com.example.sergey.pulsdetector2;
 
+import android.support.annotation.NonNull;
 import android.util.Log;
 
+import java.io.Console;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -27,9 +29,9 @@ public class RelaxMeasurer {
 
     public RelaxResult getPulse(ArrayList<Integer> redsums){
         double fps = (double) redsums.size() / 60;
-//        for (int i = 0; i < (redsums.size() - window_size) % shift; i++){
-//            redsums.remove(0);
-//        }
+        for (int i = 0; i < (redsums.size() - window_size) % shift; i++){
+            redsums.remove(0);
+        }
 //
         ArrayList<Integer> results = pc.processFloatingWindow(redsums, fps, shift, window_size);
 //        StringBuilder sb = new StringBuilder();
@@ -50,17 +52,41 @@ public class RelaxMeasurer {
 
         cleanResults(results, timestamps);
 
-        double[] coefs1 = doRegression(results, timestamps, 1);
-        double[] coefs2 = doRegression(results, timestamps, 2);
-        if (coefs1[1] > 0) return null; // pulse does not decrease
 
-        double[][] coefst = {coefs1, coefs2};
+        double[] expcoefs = getExpCoefs(results, timestamps);
 
-
-        return new RelaxResult(results, calculatePulseUsingCoefs(coefst));
+        Log.e("coefs", "["+expcoefs[0]+", "+expcoefs[1]+"]");
+        return new RelaxResult(results, calculatePulseUsingExpCoefs(expcoefs));
     }
 
-    private double[][] calculatePulseUsingCoefs(double[][] coefst){
+    // http://mathworld.wolfram.com/LeastSquaresFittingExponential.html
+    private double[] getExpCoefs(ArrayList<Integer> results, ArrayList<Double> timestamps){
+        double sumy=0., sumx2y = 0., sumylny = 0., sumxy = 0., sumxylny = 0.;
+        double lny, x, y;
+        for (int i = 0; i < results.size(); i ++){
+            x = timestamps.get(i);
+            y = results.get(i);
+            lny = Math.log(y);
+            sumy += y;
+            sumx2y += x*x*y;
+            sumxylny += x*y*lny;
+            sumylny += y*lny;
+            sumxy += x*y;
+        }
+
+        double a = (sumx2y*sumylny - sumxy*sumxylny)/(sumy*sumx2y - Math.pow(sumxy, 2));
+        double b = (sumy*sumxylny - sumxy*sumylny)/(sumy*sumx2y - Math.pow(sumxy, 2));
+
+        return new double[] {Math.exp(a), b};
+    }
+
+    private double[] calculatePulseUsingExpCoefs(double[] coefs){
+        double finres = Math.round(coefs[0]*Math.exp(coefs[1]*60.)*10)/10;
+        double startres = Math.round(coefs[0]*10)/10;
+        return new double[]{startres, finres};
+    }
+
+    private double[][] calculatePulseUsingPolyCoefs(double[][] coefst){
         double[][] calcs = new double[2][coefst.length+1];
         double cumstart = 0, cumfin = 0;
         for (int i = 0; i < coefst.length; i++){
@@ -260,8 +286,8 @@ public class RelaxMeasurer {
 
     public class RelaxResult{
         ArrayList<Integer> result;
-        double[][] calcs;
-        public RelaxResult(ArrayList<Integer> result, double[][] calcs){
+        double[] calcs;
+        public RelaxResult(ArrayList<Integer> result, double[] calcs){
             this.result = result;
             this.calcs = calcs;
         }
