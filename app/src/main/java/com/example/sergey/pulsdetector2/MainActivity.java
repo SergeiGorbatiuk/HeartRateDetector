@@ -19,9 +19,12 @@ import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -56,6 +59,9 @@ public class MainActivity extends AppCompatActivity {
     private Mode mode = Mode.Peace;
     private PeaceMeasurer peaceMeasurer = new PeaceMeasurer();
     private RelaxMeasurer relaxMeasurer = new RelaxMeasurer();
+    private Spinner winSizeSpinner;
+    private EditText shiftSize;
+    private LinearLayout settingsBar;
 
 
     private static PowerManager.WakeLock wakeLock = null;
@@ -68,7 +74,6 @@ public class MainActivity extends AppCompatActivity {
             case 1: {
                 if (grantResults.length > 0
                         && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    Log.e("Permission", "just been granted");
                     this.recreate();
                 }
                 else {
@@ -102,7 +107,9 @@ public class MainActivity extends AppCompatActivity {
         graphFur = (GraphView)findViewById(R.id.graphFur);
         radioGroup = (RadioGroup)findViewById(R.id.radio_group);
         mode_cap = (TextView)findViewById(R.id.mode_cap);
-
+        winSizeSpinner = (Spinner)findViewById(R.id.spinner);
+        shiftSize = (EditText)findViewById(R.id.shiftNum);
+        settingsBar = (LinearLayout)findViewById(R.id.settings_bar);
 
 
         timerToStart = new CountDownTimer(3000, 1000){
@@ -194,8 +201,7 @@ public class MainActivity extends AppCompatActivity {
                         graphFur.setVisibility(View.GONE);
                         resultTextField.setVisibility(View.GONE);
                         preview.setVisibility(View.VISIBLE);
-                        mode_cap.setVisibility(View.GONE);
-                        radioGroup.setVisibility(View.GONE);
+                        settingsBar.setVisibility(View.GONE);
 
                         progressBar.setProgress(0);
                         redsums.clear();
@@ -223,6 +229,8 @@ public class MainActivity extends AppCompatActivity {
         radioGroup.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(RadioGroup group, int checkedId) {
+                Log.e("SPIN", winSizeSpinner.getSelectedItemPosition()+"");
+                Log.e("SHIFT", Integer.parseInt(shiftSize.getText().toString())+"");
                 if (checkedId == R.id.radio_peace){
                     mode = Mode.Peace;
                 }
@@ -241,10 +249,8 @@ public class MainActivity extends AppCompatActivity {
         int permission = PermissionChecker.checkSelfPermission(this, Manifest.permission.CAMERA);
 
         if (permission == PermissionChecker.PERMISSION_GRANTED) {
-            Log.e("PERMISSION", "granted");
             initialize();
         } else {
-            Log.e("PERMISSION", "not granted");
             ActivityCompat.requestPermissions(MainActivity.this,
                     new String[]{Manifest.permission.CAMERA},
                     1);
@@ -398,8 +404,19 @@ public class MainActivity extends AppCompatActivity {
                 red_series.setColor(Color.RED);
                 graph.addSeries(red_series);
                 graph.setVisibility(View.VISIBLE);
-
-                RelaxResult result = relaxMeasurer.getPulse(redsums);
+                RelaxResult result = null;
+                switch (winSizeSpinner.getSelectedItemPosition()){
+                    case 0:{
+                        result = relaxMeasurer.getPulse(redsums, Integer.parseInt(shiftSize.getText().toString()), 256);
+                        break;
+                    }
+                    case 1:{
+                        result = relaxMeasurer.getPulse(redsums, Integer.parseInt(shiftSize.getText().toString()), 512);
+                    }
+                    case 2:{
+                        result = relaxMeasurer.getPulse(redsums, Integer.parseInt(shiftSize.getText().toString()), 1024);
+                    }
+                }
                 if (result == null){
                     resultTextField.setText("Bad measurement");
                 }
@@ -417,8 +434,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        mode_cap.setVisibility(View.VISIBLE);
-        radioGroup.setVisibility(View.VISIBLE);
+        settingsBar.setVisibility(View.VISIBLE);
 
         startButton.setText(R.string.startMeasuring);
         measuring = !measuring;
@@ -426,8 +442,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void cancellationMotions(){
         progressBar.setVisibility(View.INVISIBLE);
-        mode_cap.setVisibility(View.VISIBLE);
-        radioGroup.setVisibility(View.VISIBLE);
+        settingsBar.setVisibility(View.VISIBLE);
         timerToStart.cancel();
         TTGRelax.cancel();
         TTGPeace.cancel();

@@ -134,8 +134,8 @@ public class PulseCalculator {
         for (int i = 0; i<window_size; i++){
             window.add(redsums.get(i));
         }
-        int intervals = (redsums.size() - 512)/shift;
-        int current = 512;
+        int intervals = (redsums.size() - window_size)/shift;
+        int current = window_size;
 
         ExecutorService service = Executors.newCachedThreadPool();
         List<Callable<Integer>> tasks = new ArrayList<>();

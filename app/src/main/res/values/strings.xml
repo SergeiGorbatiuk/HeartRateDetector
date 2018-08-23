@@ -4,4 +4,10 @@
     <string name="stopMeasuring">Stop measuring</string>
     <string name="tillStart">Till start: </string>
     <string name="toGo">Remaining: </string>
+
+    <string-array name="win_sizes">
+        <item>256</item>
+        <item>512</item>
+        <item>1024</item>
+    </string-array>
 </resources>

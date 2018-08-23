@@ -27,12 +27,11 @@ public class RelaxMeasurer {
             94,97,94,97,94,94,94,94,97,94,37,94,94,94,94,37,94,97,94,37,
             94,94,94,94,94,94,94,94};
 
-    public RelaxResult getPulse(ArrayList<Integer> redsums){
+    public RelaxResult getPulse(ArrayList<Integer> redsums, Integer shift, Integer window_size){
         double fps = (double) redsums.size() / 60;
         for (int i = 0; i < (redsums.size() - window_size) % shift; i++){
             redsums.remove(0);
         }
-//
         ArrayList<Integer> results = pc.processFloatingWindow(redsums, fps, shift, window_size);
 //        StringBuilder sb = new StringBuilder();
 //        sb.append("{");
